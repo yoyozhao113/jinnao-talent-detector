@@ -164,6 +164,27 @@
       cursor: pointer;
       margin-top: 4px;
     }
+    /* ========== 埋点统计样式 ========== */
+    .track-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .track-card { background: #111638; border: 1px solid #1e2954; border-radius: 10px; padding: 12px; }
+    .track-card.full { grid-column: 1 / -1; }
+    .track-card h3 { font-size: 0.8rem; color: #575a85; margin-bottom: 8px; }
+    .track-num { font-size: 1.6rem; font-weight: 700; color: #7c8cf0; }
+    .track-num-small { font-size: 1rem; font-weight: 600; color: #f0c040; }
+    .track-bar-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.75rem; }
+    .track-bar-label { color: #8b8fbd; min-width: 80px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-bar-bg { flex: 1; height: 16px; background: #0d1233; border-radius: 4px; overflow: hidden; }
+    .track-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+    .track-bar-fill.page { background: linear-gradient(90deg, #7c8cf0, #5a6bd8); }
+    .track-bar-fill.section { background: linear-gradient(90deg, #f0c040, #e09e30); }
+    .track-bar-fill.event { background: linear-gradient(90deg, #66bb6a, #43a047); }
+    .track-bar-count { color: #c8c6e0; min-width: 30px; text-align: left; font-size: 0.72rem; }
+    .track-day-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 0.72rem; }
+    .track-day-label { color: #575a85; min-width: 60px; }
+    .track-day-bg { flex: 1; height: 14px; background: #0d1233; border-radius: 4px; overflow: hidden; }
+    .track-day-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #7c8cf0, #f0c040); }
+    .track-day-count { color: #c8c6e0; min-width: 30px; }
+    .track-empty { text-align: center; color: #575a85; padding: 30px 0; font-size: 0.8rem; }
   </style>
   <script>
     const ADMIN_KEY = 'momadmin888';
@@ -468,6 +489,122 @@
       d.textContent = s;
       return d.innerHTML;
     }
+
+    // ========== 埋点统计 ==========
+    async function loadTrackingStats() {
+      const container = document.getElementById('tracking-content');
+      if (!container) return;
+
+      try {
+        const res = await api('/api/track/stats?key=' + ADMIN_KEY + '&days=14');
+        if (!res.success || !res.stats) {
+          container.innerHTML = '<div class="track-empty">暂无数据</div>';
+          return;
+        }
+        renderTrackingStats(container, res.stats);
+      } catch {
+        container.innerHTML = '<div class="track-empty">加载失败</div>';
+      }
+    }
+
+    function renderTrackingStats(container, stats) {
+      const { total, recent, pageViews, sectionViews, eventCounts, dailyActive } = stats;
+
+      // 各分类 Top 10
+      const pvTop = Object.entries(pageViews || {}).slice(0, 10);
+      const svTop = Object.entries(sectionViews || {}).slice(0, 10);
+      const evTop = Object.entries(eventCounts || {}).slice(0, 10);
+      const daEntries = Object.entries(dailyActive || {});
+
+      const maxPv = pvTop.length ? pvTop[0][1] : 1;
+      const maxSv = svTop.length ? svTop[0][1] : 1;
+      const maxEv = evTop.length ? evTop[0][1] : 1;
+      const maxDa = daEntries.length ? Math.max(...daEntries.map(e => e[1])) : 1;
+
+      // 计算唯一用户数（从原始数据近似：用 DAU 条目数 * 平均活跃度，简单处理）
+      const avgDaily = daEntries.length ? Math.round(daEntries.reduce((s, e) => s + e[1], 0) / daEntries.length) : 0;
+
+      const pageLabel = (p) => {
+        const map = { home: '首页', form: '填信息', budget: '预算', loading: '加载', report: '报告页', distributor: '推广中心' };
+        return map[p] || p;
+      };
+      const sectionLabel = (s) => s.length > 20 ? s.slice(0, 18) + '…' : s;
+      const eventLabel = (e) => {
+        const map = { page_view: '页面浏览', section_view: '板块浏览', app_load: '启动', share_image: '保存图片', click_share: '点击分享', click_wechat: '复制微信', click_talent: '查看天赋', report_generated: '生成报告', submit_comment: '发表评论', distributor_register: '推广注册', click_unlock: '点击解锁' };
+        return map[e] || e;
+      };
+      const dayLabel = (d) => {
+        const parts = d.split('-');
+        return parts[1] + '/' + parts[2];
+      };
+
+      container.innerHTML = `
+        <div class="track-grid">
+          <div class="track-card">
+            <h3>总事件数</h3>
+            <div class="track-num">${total}</div>
+          </div>
+          <div class="track-card">
+            <h3>近14天</h3>
+            <div class="track-num">${recent}</div>
+          </div>
+          <div class="track-card">
+            <h3>日均活跃</h3>
+            <div class="track-num-small">${avgDaily}</div>
+          </div>
+          <div class="track-card">
+            <h3>统计天数</h3>
+            <div class="track-num-small">${stats.days || 7}天</div>
+          </div>
+        </div>
+
+        <div class="track-grid">
+          <div class="track-card">
+            <h3>📄 页面浏览量 Top</h3>
+            ${pvTop.length ? pvTop.map(([k, v]) => `
+              <div class="track-bar-item">
+                <span class="track-bar-label">${pageLabel(k)}</span>
+                <div class="track-bar-bg"><div class="track-bar-fill page" style="width:${(v / maxPv * 100).toFixed(1)}%"></div></div>
+                <span class="track-bar-count">${v}</span>
+              </div>
+            `).join('') : '<div class="track-empty">暂无</div>'}
+          </div>
+
+          <div class="track-card">
+            <h3>🔍 板块浏览 Top</h3>
+            ${svTop.length ? svTop.map(([k, v]) => `
+              <div class="track-bar-item">
+                <span class="track-bar-label" title="${escHtml(k)}">${sectionLabel(k)}</span>
+                <div class="track-bar-bg"><div class="track-bar-fill section" style="width:${(v / maxSv * 100).toFixed(1)}%"></div></div>
+                <span class="track-bar-count">${v}</span>
+              </div>
+            `).join('') : '<div class="track-empty">暂无</div>'}
+          </div>
+
+          <div class="track-card full">
+            <h3>📊 事件分布</h3>
+            ${evTop.length ? evTop.map(([k, v]) => `
+              <div class="track-bar-item">
+                <span class="track-bar-label">${eventLabel(k)}</span>
+                <div class="track-bar-bg"><div class="track-bar-fill event" style="width:${(v / maxEv * 100).toFixed(1)}%"></div></div>
+                <span class="track-bar-count">${v}</span>
+              </div>
+            `).join('') : '<div class="track-empty">暂无</div>'}
+          </div>
+
+          <div class="track-card full">
+            <h3>📈 每日活跃趋势</h3>
+            ${daEntries.length ? daEntries.map(([k, v]) => `
+              <div class="track-day-row">
+                <span class="track-day-label">${dayLabel(k)}</span>
+                <div class="track-day-bg"><div class="track-day-fill" style="width:${(v / maxDa * 100).toFixed(1)}%"></div></div>
+                <span class="track-day-count">${v}</span>
+              </div>
+            `).join('') : '<div class="track-empty">暂无</div>'}
+          </div>
+        </div>
+      `;
+    }
   </script>
 </head>
 <body>
@@ -489,6 +626,7 @@
         <span class="admin-tab" data-tab="approved" onclick="setTab('approved')">✅ 已通过</span>
         <span class="admin-tab" data-tab="all" onclick="setTab('all')">📋 全部</span>
         <span class="admin-tab dist" data-tab="dist" onclick="setTab('dist')">💰 分销</span>
+        <span class="admin-tab" data-tab="tracking" onclick="setTab('tracking')">📊 埋点</span>
       </div>
 
       <!-- 评论管理 -->
@@ -503,22 +641,23 @@
 
       <!-- 分销管理 -->
       <div id="dist-admin-content" style="display:none;"></div>
+
+      <!-- 埋点统计 -->
+      <div id="tracking-content" style="display:none;"></div>
     </div>
   </div>
   <script>
-    // 切换显示评论/分销区域
+    // 切换显示评论/分销/埋点区域
     const origSetTab = setTab;
     setTab = function(tab) {
       origSetTab(tab);
       const commentArea = document.getElementById('comment-area');
       const distArea = document.getElementById('dist-admin-content');
-      if (tab === 'dist') {
-        commentArea.style.display = 'none';
-        distArea.style.display = 'block';
-      } else {
-        commentArea.style.display = 'block';
-        distArea.style.display = 'none';
-      }
+      const trackArea = document.getElementById('tracking-content');
+      commentArea.style.display = (tab === 'dist' || tab === 'tracking') ? 'none' : 'block';
+      distArea.style.display = tab === 'dist' ? 'block' : 'none';
+      trackArea.style.display = tab === 'tracking' ? 'block' : 'none';
+      if (tab === 'tracking') loadTrackingStats();
     };
   </script>
 </body>

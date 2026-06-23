@@ -469,9 +469,149 @@ h1, h2, h3, .home-logo {
 .house-name { color: #38BDF8; font-weight: 500; }
 .house-desc { color: #64748B; }
 
-.aspect-list { margin-top: 8px; }
-.aspect-item { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 0.88rem; }
-.aspect-item:last-child { border-bottom: none; }
+/* ===== 相位卡片（报告内） ===== */
+.aspect-cards { margin-top: 4px; }
+.aspect-group { margin-bottom: 14px; }
+.aspect-group:last-child { margin-bottom: 0; }
+.aspect-group-title { font-size: 0.78rem; font-weight: 600; margin-bottom: 8px; padding-left: 4px; letter-spacing: 0.5px; }
+
+.aspect-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  transition: background 0.2s;
+}
+.aspect-card:last-child { margin-bottom: 0; }
+.aspect-card:hover { background: rgba(255,255,255,0.04); }
+
+.aspect-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.aspect-card-planets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.aspect-planet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+}
+.aspect-planet-badge .planet-symbol { font-size: 0.9rem; }
+.aspect-planet-badge .planet-name { font-size: 0.78rem; color: #c8c6e0; }
+.aspect-card-body { font-size: 0.82rem; color: #8b8fbd; line-height: 1.7; }
+
+.aspect-type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.aspect-type-pill.conjunction { background: rgba(255,152,0,0.15); color: #ff9800; }
+.aspect-type-pill.trine     { background: rgba(76,175,80,0.15); color: #4caf50; }
+.aspect-type-pill.sextile   { background: rgba(33,150,243,0.15); color: #2196f3; }
+.aspect-type-pill.square    { background: rgba(244,67,54,0.15); color: #f44336; }
+.aspect-type-pill.opposition { background: rgba(233,30,99,0.15); color: #e91e63; }
+
+/* ===== 相位矩阵弹窗 ===== */
+.aspect-matrix-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.72rem;
+  table-layout: fixed;
+  margin: 0 auto;
+}
+.aspect-matrix-table th,
+.aspect-matrix-table td {
+  border: 1px solid #1e2954;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  max-width: 30px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.aspect-matrix-table th {
+  background: rgba(255,255,255,0.03);
+  color: #8b8fbd;
+  font-weight: 600;
+  font-size: 0.8rem;
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
+  letter-spacing: 1px;
+}
+.matrix-row-header {
+  writing-mode: horizontal-tb !important;
+  text-orientation: initial !important;
+  letter-spacing: normal !important;
+  background: transparent !important;
+  border: 1px solid #1e2954 !important;
+  font-size: 0.85rem !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  max-width: 30px !important;
+}
+.aspect-matrix-table .matrix-header-row th:first-child {
+  writing-mode: horizontal-tb;
+  text-orientation: initial;
+  letter-spacing: normal;
+  background: transparent;
+  border-color: transparent;
+}
+.aspect-matrix-cell-aspect {
+  cursor: default;
+  font-size: 0.7rem;
+  transition: background 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  line-height: 1;
+  height: 100%;
+  width: 100%;
+}
+.matrix-aspect-sym { font-size: 0.7rem; line-height: 1; }
+.matrix-aspect-orb { font-size: 0.5rem; opacity: 0.7; line-height: 1; }
+.aspect-matrix-cell-aspect:hover { background: rgba(255,255,255,0.06) !important; }
+.aspect-matrix-cell-diag {
+  background: rgba(255,255,255,0.015);
+  border: 1px solid #1e2954 !important;
+}
+.aspect-matrix-cell-empty { background: transparent; border: 1px solid #1e2954 !important; }
+.matrix-bottom-axis th {
+  writing-mode: horizontal-tb;
+  text-orientation: initial;
+  letter-spacing: normal;
+  font-size: 0.85rem;
+  background: transparent;
+  border: 1px solid #1e2954;
+  color: #8b8fbd;
+}
+.matrix-bottom-axis th:first-child { border-color: transparent; }
+.matrix-col-header { writing-mode: horizontal-tb; text-orientation: initial; letter-spacing: normal; font-size: 0.85rem; }
+.matrix-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #1e2954; }
+.matrix-legend-item { display: flex; align-items: center; gap: 4px; font-size: 0.72rem; color: #8b8fbd; }
+.matrix-legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
 
 /* Risk level */
 .risk-level { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }

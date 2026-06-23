@@ -4,6 +4,7 @@
  */
 import { CITIES } from './data/cities.js';
 import { drawChartWheel } from './chart-wheel.mjs';
+import track from './tracker.mjs';
 
 // ========== State ==========
 let currentTestType = null;   // 'strength' | 'star'
@@ -27,6 +28,7 @@ function showPage(name) {
   Object.values(pages).forEach(p => p?.classList.remove('active'));
   if (pages[name]) pages[name].classList.add('active');
   window.scrollTo(0, 0);
+  track('page_view', { page: name, label: currentTestType || '' });
 }
 
 // ========== 导航 ==========
@@ -276,6 +278,7 @@ async function doStarReport(formData, budget, grade) {
     const wheelResult = drawChartWheel('chart-wheel', data.chart);
     setupAspectBadge(wheelResult);
     renderStep3();
+    track('report_generated', { page: 'report', label: formData.version, meta: { type: currentTestType } });
   } catch (err) {
     showToast('计算失败：' + err.message);
     showPage('form');
@@ -474,6 +477,7 @@ window.copyWechat = () => {
   const t = CONTACT_WECHAT;
   if (navigator.clipboard) { navigator.clipboard.writeText(t).then(() => showToast('已复制')).catch(() => {}); }
   else { const ta = document.createElement('textarea'); ta.value = t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('已复制'); }
+  track('click_wechat', { page: currentTestType === 'star' ? 'report' : 'strength' });
 };
 
 // ================================================================
@@ -515,6 +519,7 @@ function renderReport(report, version) {
   }
 
   renderCommentSection('star');
+  trackReportSectionViews();
 
   // 在报告底部追加五者天赋提示
   const talentPromptEl = renderTalentPrompt();
@@ -595,14 +600,91 @@ function renderHouses(houses) {
 }
 
 function renderAspects(aspects) {
-  // 兼容字符串和数组两种格式
   if (typeof aspects === 'string') {
     return `<div class="value" style="padding:4px 0;line-height:1.8;">${aspects}</div>`;
   }
   if (!aspects || !aspects.length) return '<div style="color:#8888a0;padding:8px;">未发现显著相位</div>';
-  let html = `<div class="aspect-list">`;
-  aspects.forEach(a => { html += `<div class="aspect-item"><div>${a.display||''}</div>${a.interpretation ? `<div style="color:#8888a0;font-size:0.8rem;margin-top:4px;">${a.interpretation}</div>` : ''}</div>`; });
-  html += `</div>`; return html;
+
+  const PLANET_NAMES = ['太阳','月亮','水星','金星','火星','木星','土星','天王星','海王星','冥王星'];
+  const PLANET_KEYS = ['sun','moon','mercury','venus','mars','jupiter','saturn','uranus','neptune','pluto'];
+  const SYMBOLS = {sun:'☉',moon:'☽',mercury:'☿',venus:'♀',mars:'♂',jupiter:'♃',saturn:'♄',uranus:'♅',neptune:'♆',pluto:'♇'};
+  const TYPE_MAP = {'合相':'conjunction','三分相':'trine','六分相':'sextile','四分相':'square','对分相':'opposition'};
+  const TYPE_SYMS = {'合相':'☌','三分相':'△','六分相':'✡','四分相':'□','对分相':'☍'};
+
+  // Extract planet names from a display string like "太阳☌水星（合相）"
+  function parseDisplay(display) {
+    const ps = PLANET_NAMES.filter(n => display.includes(n));
+    const tm = display.match(/[（(](.+?)[）)]/);
+    return { p1: ps[0]||'', p2: ps[1]||'', type: tm ? tm[1] : '' };
+  }
+
+  // Build aspect card HTML for one aspect
+  function cardHTML(a) {
+    let p1Name, p2Name, type, typeCls;
+    if (a.planet1En) {
+      p1Name = PLANETS_CN?.[a.planet1En] || a.planet1 || '';
+      p2Name = PLANETS_CN?.[a.planet2En] || a.planet2 || '';
+      type = a.type || '';
+      typeCls = TYPE_MAP[type] || '';
+    } else if (a.display) {
+      const parsed = parseDisplay(a.display);
+      p1Name = parsed.p1;
+      p2Name = parsed.p2;
+      type = parsed.type;
+      typeCls = TYPE_MAP[type] || '';
+    } else {
+      return '';
+    }
+
+    // Find planet key for symbol
+    const p1Key = PLANET_NAMES.indexOf(p1Name) >= 0 ? PLANET_KEYS[PLANET_NAMES.indexOf(p1Name)] : '';
+    const p2Key = PLANET_NAMES.indexOf(p2Name) >= 0 ? PLANET_KEYS[PLANET_NAMES.indexOf(p2Name)] : '';
+    const p1Sym = p1Key ? SYMBOLS[p1Key] : '';
+    const p2Sym = p2Key ? SYMBOLS[p2Key] : '';
+    const typeSym = TYPE_SYMS[type] || '';
+
+    return `
+      <div class="aspect-card">
+        <div class="aspect-card-header">
+          <div class="aspect-card-planets">
+            <span class="aspect-planet-badge"><span class="planet-symbol">${p1Sym}</span><span class="planet-name">${p1Name}</span></span>
+            <span style="color:#475569;font-size:0.7rem;">&nbsp;—&nbsp;</span>
+            <span class="aspect-planet-badge"><span class="planet-symbol">${p2Sym}</span><span class="planet-name">${p2Name}</span></span>
+          </div>
+          <span class="aspect-type-pill ${typeCls}">${typeSym} ${type}</span>
+        </div>
+        ${a.interpretation ? `<div class="aspect-card-body">${a.interpretation}</div>` : ''}
+      </div>
+    `;
+  }
+
+  // Group by harmony vs challenge
+  const harmony = aspects.filter(a => {
+    const t = a.type || (a.display ? parseDisplay(a.display).type : '');
+    return ['三分相','六分相','合相'].includes(t);
+  });
+  const challenge = aspects.filter(a => {
+    const t = a.type || (a.display ? parseDisplay(a.display).type : '');
+    return ['四分相','对分相'].includes(t);
+  });
+  const others = aspects.filter(a => !harmony.includes(a) && !challenge.includes(a));
+
+  let html = `<div class="aspect-cards">`;
+  if (harmony.length) {
+    html += `<div class="aspect-group"><div class="aspect-group-title" style="color:#4caf50;">✦ 和谐相位</div>`;
+    harmony.forEach(a => { html += cardHTML(a); });
+    html += `</div>`;
+  }
+  if (challenge.length) {
+    html += `<div class="aspect-group"><div class="aspect-group-title" style="color:#f44336;">⚡ 挑战相位</div>`;
+    challenge.forEach(a => { html += cardHTML(a); });
+    html += `</div>`;
+  }
+  if (others.length) {
+    others.forEach(a => { html += cardHTML(a); });
+  }
+  html += `</div>`;
+  return html;
 }
 
 function renderAstroTalent(c) {
@@ -847,8 +929,14 @@ function renderTalentPrompt() {
 }
 
 window.showTalentConsult = () => {
+  track('click_talent', { page: 'report', label: currentTestType || 'star' });
   const dialog = document.getElementById('talent-modal') || createTalentModal();
   dialog.showModal();
+};
+
+window.unlockReport = () => {
+  track('click_unlock', { page: 'report', label: currentVersion || 'free' });
+  showToast('请联系微信 ' + CONTACT_WECHAT + ' 付费解锁完整报告');
 };
 
 function createTalentModal() {
@@ -1004,10 +1092,12 @@ function ensureShareModal() {
 window.shareReport = () => {
   if(!currentReport?.report){showToast('请先生成报告');return;}
   ensureShareModal().showModal();
+  track('click_share', { page: 'report', label: currentTestType || 'star' });
 };
 
 window.handleShareImage = () => {
   showToast('生成分享图中…');
+  track('share_image', { page: 'report' });
   setTimeout(()=>{
     const url = generateShareImage();
     if(!url){showToast('生成失败');return;}
@@ -1180,6 +1270,7 @@ window.submitComment = async (type) => {
     const data = await res.json();
     if (data.success) {
       showToast('评论提交成功，等待管理员审核');
+      track('submit_comment', { page: 'report', label: type });
       document.getElementById('comment-content').value = '';
     } else {
       showToast(data.error || '提交失败');
@@ -1314,6 +1405,7 @@ window.submitDistributorRegister = async () => {
     const data = await res.json();
     if (data.success) {
       showToast('🎉 注册成功！');
+      track('distributor_register', { page: 'distributor', label: source });
       renderDistributorPage();
     } else {
       errEl.textContent = data.error || '注册失败';
@@ -1598,7 +1690,31 @@ window.submitDistributorWithdraw = async () => {
   }
 })();
 
+// ========== 报告板块浏览追踪 ==========
+function trackReportSectionViews() {
+  setTimeout(() => {
+    const sections = document.querySelectorAll('.report-section');
+    if (!sections.length) return;
+    const observed = new Set();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const h3 = entry.target.querySelector('h3');
+          const title = h3?.textContent?.trim() || 'unknown';
+          const id = entry.target.querySelector('.content-block')?.className || 'section';
+          if (!observed.has(title)) {
+            observed.add(title);
+            track('section_view', { section: title, label: 'star' });
+          }
+        }
+      });
+    }, { threshold: 0.3 });
+    sections.forEach(s => observer.observe(s));
+  }, 500);
+}
+
 // ========== 初始加载 ==========
 document.addEventListener('DOMContentLoaded', () => {
   showPage('home');
+  track('app_load', { label: 'v2.0' });
 });

@@ -10,6 +10,7 @@ const http = require('http');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMMENTS_FILE = join(__dirname, 'comments.json');
+const TRACKING_FILE = join(__dirname, 'tracking.json');
 const ADMIN_KEY = 'momadmin888'; // 管理员密钥，简单够用就行
 
 const { calculateBirthChart } = await import('./api/utils/astrology.mjs');
@@ -337,6 +338,72 @@ http.createServer((req, res) => {
     return;
   }
 
+  // ========== 用户行为埋点 ==========
+
+  // 上报事件
+  if (req.url === '/api/track' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const events = loadTracking();
+      events.push({
+        event: body.event || 'unknown',
+        page: body.page || '',
+        section: body.section || '',
+        label: body.label || '',
+        meta: body.meta || {},
+        ts: body.ts || Date.now(),
+        uid: body.uid || '',
+      });
+      // 只保留最近 50000 条
+      if (events.length > 50000) events.splice(0, events.length - 50000);
+      saveTracking(events);
+      sendJSON(res, 200, { success: true });
+    }).catch(() => sendJSON(res, 200, { success: true }));
+    return;
+  }
+
+  // 管理员查看统计
+  if (req.url.startsWith('/api/track/stats') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
+    const events = loadTracking();
+    const days = parseInt(params.days || '7');
+    const cutoff = Date.now() - days * 86400000;
+
+    const recent = events.filter(e => e.ts > cutoff || (typeof e.ts === 'string' && new Date(e.ts).getTime() > cutoff));
+
+    // 页面浏览量
+    const pageViews = {};
+    // 板块浏览量
+    const sectionViews = {};
+    // 事件统计
+    const eventCounts = {};
+    // 每日活跃
+    const dailyActive = {};
+
+    recent.forEach(e => {
+      const day = new Date(typeof e.ts === 'string' ? new Date(e.ts) : e.ts).toISOString().slice(0, 10);
+      dailyActive[day] = (dailyActive[day] || 0) + 1;
+
+      if (e.page) pageViews[e.page] = (pageViews[e.page] || 0) + 1;
+      if (e.section) sectionViews[e.section] = (sectionViews[e.section] || 0) + 1;
+      eventCounts[e.event] = (eventCounts[e.event] || 0) + 1;
+    });
+
+    sendJSON(res, 200, {
+      success: true,
+      stats: {
+        total: events.length,
+        recent: recent.length,
+        pageViews: sortObj(pageViews),
+        sectionViews: sortObj(sectionViews),
+        eventCounts: sortObj(eventCounts),
+        dailyActive: sortObj(dailyActive),
+        days,
+      }
+    });
+    return;
+  }
+
   res.writeHead(404); res.end();
 }).listen(3002, () => console.log('✓ 服务: http://localhost:3002'));
 
@@ -461,6 +528,20 @@ function parseJSONBody(req) {
 function sendJSON(res, code, data) {
   res.writeHead(code, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(data));
+}
+
+// ========== 埋点 ==========
+function loadTracking() {
+  try {
+    if (!fs.existsSync(TRACKING_FILE)) return [];
+    return JSON.parse(fs.readFileSync(TRACKING_FILE, 'utf-8'));
+  } catch { return []; }
+}
+function saveTracking(events) {
+  fs.writeFileSync(TRACKING_FILE, JSON.stringify(events), 'utf-8');
+}
+function sortObj(obj) {
+  return Object.entries(obj).sort((a, b) => b[1] - a[1]).reduce((r, [k, v]) => { r[k] = v; return r; }, {});
 }
 
 function getURLParams(url) {
