@@ -1,0 +1,21 @@
+{
+  "name": "star-mom-astrology",
+  "version": "2.0.0",
+  "description": "星妈天赋解读 - 基于星盘与五者天赋的亲子教育工具",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && cp admin.html dist/",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "astronomia": "^1.0.0",
+    "ephemeris": "^2.2.0",
+    "sweph-wasm": "^2.6.9",
+    "swisseph": "^0.5.17",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "vite": "^6.4.3"
+  }
+}

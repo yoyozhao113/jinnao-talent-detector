@@ -1,0 +1,16 @@
+{
+  "name": "ceping-platform",
+  "version": "1.0.0",
+  "description": "测评H5 - 性格优势 + 星盘趣味测试",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@swisseph/node": "^1.2.2",
+    "better-echarts-maps": "^0.0.3",
+    "china-division": "^2.7.0",
+    "express": "^4.22.2"
+  }
+}

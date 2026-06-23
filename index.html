@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>优势星测</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style-v2.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ====== Step1: 首页 ====== -->
+    <section id="page-home" class="page active">
+      <div class="home-header">
+        <!-- 背景星星 -->
+        <div class="hero-stars" aria-hidden="true">
+          <span class="star s1"></span><span class="star s2"></span>
+          <span class="star s3"></span><span class="star s4"></span>
+          <span class="star s5"></span><span class="star s6"></span>
+        </div>
+        <h1 class="home-logo">✦ 优势星测</h1>
+        <p class="home-subtitle">发现你的天生优势 · 解锁星辰密码</p>
+      </div>
+      <div class="home-cards">
+        <!-- 性格优势 -->
+        <div class="home-card" onclick="goToStep2('strength')">
+          <div class="home-card-icon strength-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 7 9 5-4 7-6 7-9a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>性格优势测试 <span class="tag-hot">HOT</span></h3>
+            <p>15道题，AI 深度分析你的核心性格优势</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <!-- 星盘解读 -->
+        <div class="home-card" onclick="goToStep2('star')">
+          <div class="home-card-icon star-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-5.07l-2.83 2.83M9.76 14.24l-2.83 2.83m11.14 0l-2.83-2.83M9.76 9.76L6.93 6.93"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>星盘天赋解读 <span class="tag-new">专业</span></h3>
+            <p>输入出生信息，生成专属星盘+解读报告</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <!-- 五行天赋 -->
+        <div class="home-card" onclick="showTalentConsult()">
+          <div class="home-card-icon talent-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>五者天赋测评 <span class="tag-new">NEW</span></h3>
+            <p>后天大脑优势训练 · 五行天赋培养方案</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <!-- 分销中心 -->
+        <div class="home-card" onclick="openDistributorCenter()">
+          <div class="home-card-icon dist-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>推广中心 <span class="tag-hot">赚佣金</span></h3>
+            <p>分享报告赚佣金，每单最高赚 ¥3</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="home-footer">已服务 1,000+ 用户 · <a href="/admin.html" style="color:rgba(255,255,255,0.15);text-decoration:none;font-size:0.7rem;">管理</a></div>
+    </section>
+
+    <!-- ====== Step2: 信息填写 ====== -->
+    <section id="page-form" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="goHome()">← 返回</button>
+        <span class="step-indicator">Step 2/3</span>
+      </div>
+      <div id="form-content"><!-- JS 渲染 --></div>
+    </section>
+
+    <!-- ====== 选填信息 ====== -->
+    <section id="page-budget" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="backFromBudget()">← 返回</button>
+        <span class="step-indicator">选填信息</span>
+      </div>
+      <div id="budget-content"></div>
+    </section>
+
+    <!-- ====== 加载 ====== -->
+    <section id="page-loading" class="page">
+      <div class="loading-container">
+        <div class="loading-ring">
+          <div class="ring-segment r1"></div>
+          <div class="ring-segment r2"></div>
+          <div class="ring-segment r3"></div>
+        </div>
+        <p class="loading-text" id="loading-text">AI 分析中...</p>
+        <p class="loading-hint" id="loading-hint">正在生成你的专属报告</p>
+      </div>
+    </section>
+
+    <!-- ====== 报告页 ====== -->
+    <section id="page-report" class="page">
+      <div class="page-topbar report-topbar">
+        <button class="btn-back" onclick="goHome()">← 首页</button>
+      </div>
+
+      <div id="star-report-area" class="hidden">
+        <div class="report-header">
+          <div class="report-badge" id="report-badge">免费版</div>
+          <h2 class="report-title" id="report-title">宝贝的专属星盘解读</h2>
+          <p class="report-summary" id="report-summary">太阳：-- | 月亮：-- | 上升：--</p>
+          <p class="report-algo" id="report-algo">Placidus 宫位制 · 瑞士星历表</p>
+        </div>
+        <div class="chart-wheel-container">
+          <canvas id="chart-wheel"></canvas>
+        </div>
+        <dialog id="aspect-modal" class="aspect-modal">
+          <div class="aspect-modal-title">
+            <span>🔗 相位表</span>
+            <button class="aspect-modal-close" onclick="closeAspectModal()">✕</button>
+          </div>
+          <div id="aspect-modal-body" class="aspect-modal-body"></div>
+        </dialog>
+        <div id="report-content" class="report-body"></div>
+        <div id="report-footer" class="report-footer"></div>
+        <div class="report-actions">
+          <button class="btn-share" onclick="window.shareReport()">📤 分享</button>
+          <button class="btn-dist" onclick="window.openDistributorCenter()">💰 推广赚钱</button>
+          <button class="btn-back" onclick="window.backToForm()">🔄 重新解读</button>
+        </div>
+      </div>
+
+      <div id="strength-report-area" class="hidden">
+        <div class="strength-result" id="strength-result"><!-- JS渲染 --></div>
+      </div>
+    </section>
+
+    <!-- ====== 分销中心 ====== -->
+    <section id="page-distributor" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="closeDistributorCenter()">← 返回</button>
+        <span class="step-indicator">推广中心</span>
+      </div>
+      <div id="distributor-content"><!-- JS 动态渲染 --></div>
+    </section>
+
+  </div>
+  <script type="module" src="/src/main.js?v=5"></script>
+</body>
+</html>

@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>优势星测 - 管理后台</title>
+  <style>
+    /* ========== Reset & Base (内联，生产自包含) ========== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: #0a0e27;
+      background-image:
+        radial-gradient(ellipse at 15% 25%, rgba(124, 140, 240, 0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 75%, rgba(240, 192, 64, 0.04) 0%, transparent 50%);
+      color: #e8eaff;
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+    input, button, select, textarea { font-family: inherit; }
+
+    /* ========== Admin 基础样式 ========== */
+    .admin-page { max-width: 700px; margin: 0 auto; padding: 20px 16px; }
+    .admin-header { text-align: center; padding: 20px 0; }
+    .admin-header h1 { font-size: 1.3rem; color: #f0c040; }
+    .admin-login { text-align: center; padding: 40px 0; }
+    .admin-login input {
+      width: 80%; max-width: 300px; padding: 12px 16px; border-radius: 10px;
+      border: 1px solid #1e2954; background: #0d1233; color: #e8eaff;
+      font-size: 0.95rem; outline: none; margin-bottom: 12px;
+    }
+    .admin-login input:focus { border-color: #f0c040; }
+    .admin-login button {
+      background: linear-gradient(135deg, #f0c040, #e09e30); color: #0a0e27;
+      border: none; border-radius: 10px; padding: 12px 40px; font-size: 1rem;
+      font-weight: 600; cursor: pointer;
+    }
+    .admin-stats { display: flex; gap: 12px; margin-bottom: 16px; }
+    .admin-stat { flex: 1; background: #111638; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #1e2954; }
+    .admin-stat-num { font-size: 1.4rem; font-weight: 700; color: #f0c040; }
+    .admin-stat-label { font-size: 0.75rem; color: #575a85; margin-top: 2px; }
+    .admin-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .admin-tab {
+      padding: 8px 14px; border-radius: 8px; font-size: 0.8rem; cursor: pointer;
+      border: 1px solid transparent; color: #575a85; transition: all 0.2s;
+    }
+    .admin-tab:hover { color: #8b8fbd; border-color: #1e2954; }
+    .admin-tab.active { background: rgba(240, 192, 64, 0.1); color: #f0c040; border-color: rgba(240, 192, 64, 0.3); }
+    .admin-comment-item {
+      background: #111638; border: 1px solid #1e2954; border-radius: 10px;
+      padding: 14px; margin-bottom: 10px;
+    }
+    .admin-comment-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px; }
+    .admin-comment-name { font-weight: 600; color: #e8eaff; font-size: 0.85rem; }
+    .admin-comment-type { font-size: 0.72rem; color: #575a85; background: rgba(255,255,255,0.02); padding: 2px 8px; border-radius: 10px; }
+    .admin-comment-time { font-size: 0.72rem; color: #575a85; }
+    .admin-comment-content { font-size: 0.85rem; line-height: 1.7; color: #8b8fbd; margin-bottom: 8px; }
+    .admin-comment-actions { display: flex; gap: 8px; }
+    .admin-btn-approve, .admin-btn-delete { padding: 6px 14px; border: none; border-radius: 6px; font-size: 0.78rem; cursor: pointer; }
+    .admin-btn-approve { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+    .admin-btn-delete { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+    .admin-empty { text-align: center; color: #575a85; padding: 40px 0; font-size: 0.85rem; }
+
+    /* ========== 分销管理样式 ========== */
+    .admin-tab.dist { color: #f59e0b; }
+    .dist-admin-section { margin-bottom: 20px; }
+    .dist-admin-section h3 { color: #e8eaff; font-size: 0.95rem; margin: 0 0 10px; }
+    .dist-admin-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+    .dist-admin-table th {
+      text-align: left;
+      padding: 6px 8px;
+      color: #575a85;
+      border-bottom: 1px solid #1e2954;
+      font-weight: 500;
+    }
+    .dist-admin-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(30,41,84,0.5);
+      color: #c8c6e0;
+    }
+    .dist-admin-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+    }
+    .dist-admin-badge.active { background: rgba(102,187,106,0.2); color: #66bb6a; }
+    .dist-admin-badge.disabled { background: rgba(239,83,80,0.2); color: #ef5350; }
+    .dist-admin-badge.pending { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    .dist-admin-badge.confirmed { background: rgba(102,187,106,0.2); color: #66bb6a; }
+    .dist-admin-badge.cancelled { background: rgba(239,83,80,0.2); color: #ef5350; }
+    .dist-admin-badge.approved { background: rgba(102,187,106,0.2); color: #66bb6a; }
+    .dist-admin-badge.rejected { background: rgba(239,83,80,0.2); color: #ef5350; }
+    .dist-admin-actions { display: flex; gap: 4px; }
+    .dist-admin-btn {
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: none;
+      font-size: 0.65rem;
+      cursor: pointer;
+    }
+    .dist-admin-btn.confirm { background: rgba(102,187,106,0.2); color: #66bb6a; }
+    .dist-admin-btn.cancel { background: rgba(239,83,80,0.2); color: #ef5350; }
+    .dist-admin-btn.approve { background: rgba(102,187,106,0.2); color: #66bb6a; }
+    .dist-admin-btn.reject { background: rgba(239,83,80,0.2); color: #ef5350; }
+    .dist-admin-stats {
+      display: flex; gap: 8px; margin-bottom: 12px;
+    }
+    .dist-admin-stat {
+      background: #111638;
+      border: 1px solid #1e2954;
+      border-radius: 8px;
+      padding: 10px 16px;
+      text-align: center;
+      flex: 1;
+    }
+    .dist-admin-stat-num { font-size: 1.2rem; font-weight: 700; color: #f59e0b; }
+    .dist-admin-stat-label { font-size: 0.65rem; color: #575a85; margin-top: 2px; }
+    .dist-admin-note-input {
+      background: #0d1233;
+      border: 1px solid #1e2954;
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: #e8eaff;
+      font-size: 0.65rem;
+      width: 80px;
+      outline: none;
+    }
+    .dist-admin-note-input:focus { border-color: #f59e0b; }
+    .dist-admin-config {
+      background: #111638;
+      border: 1px solid #1e2954;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .dist-admin-config h3 { color: #e8eaff; font-size: 0.95rem; margin: 0 0 16px; }
+    .dist-admin-config-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .dist-admin-config-row label { color: #8b8fbd; font-size: 0.8rem; min-width: 100px; }
+    .dist-admin-config-row input {
+      flex: 1;
+      background: #0d1233;
+      border: 1px solid #1e2954;
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: #e8eaff;
+      font-size: 0.9rem;
+      outline: none;
+      max-width: 160px;
+    }
+    .dist-admin-config-row input:focus { border-color: #f59e0b; }
+    .dist-admin-config-hint { color: #575a85; font-size: 0.65rem; margin-top: 2px; }
+    .dist-admin-config .current { color: #66bb6a; font-weight: 600; }
+    .dist-admin-config .btn-save-config {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #0a0e27;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 24px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+  </style>
+  <script>
+    const ADMIN_KEY = 'momadmin888';
+    let currentTab = 'pending';
+    let currentDistTab = 'distributors';
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+      return res.json();
+    }
+
+    async function login() {
+      const key = document.getElementById('admin-key').value;
+      if (key !== ADMIN_KEY) { document.getElementById('login-error').textContent = '密钥错误'; return; }
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('admin-panel').style.display = 'block';
+      loadComments();
+      loadDistributorData();
+    }
+
+    // ========== 评论管理 ==========
+    async function loadComments() {
+      const data = await api('/api/comments?admin=1&key=' + ADMIN_KEY);
+      if (!data.success) return;
+      const comments = data.data || [];
+      const pending = comments.filter(c => !c.approved);
+      const approved = comments.filter(c => c.approved);
+
+      document.getElementById('stat-pending').textContent = pending.length;
+      document.getElementById('stat-approved').textContent = approved.length;
+      document.getElementById('stat-total').textContent = comments.length;
+
+      const list = document.getElementById('comment-list');
+      const items = currentTab === 'pending' ? pending : (currentTab === 'approved' ? approved : comments);
+
+      if (!items.length) {
+        list.innerHTML = '<div class="admin-empty">暂无评论</div>';
+        return;
+      }
+
+      list.innerHTML = items.map(c => `
+        <div class="admin-comment-item">
+          <div class="admin-comment-meta">
+            <div>
+              <span class="admin-comment-name">${escHtml(c.name)}</span>
+              <span class="admin-comment-type">${c.reportType === 'star' ? '星盘' : '性格测试'}</span>
+            </div>
+            <span class="admin-comment-time">${new Date(c.createdAt).toLocaleString('zh-CN')}</span>
+          </div>
+          <div class="admin-comment-content">${escHtml(c.content)}</div>
+          <div class="admin-comment-actions">
+            ${!c.approved ? `<button class="admin-btn-approve" onclick="approveComment('${c.id}')">✓ 通过</button>` : ''}
+            <button class="admin-btn-delete" onclick="deleteComment('${c.id}')">✕ 删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function approveComment(id) {
+      await api('/api/comments?action=approve&key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify({ id })
+      });
+      loadComments();
+    }
+
+    async function deleteComment(id) {
+      if (!confirm('确定删除这条评论？')) return;
+      await api('/api/comments?action=delete&key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify({ id })
+      });
+      loadComments();
+    }
+
+    function setTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      if (tab === 'dist') {
+        loadDistributorData();
+      } else {
+        loadComments();
+      }
+    }
+
+    // ========== 分销管理 ==========
+    async function loadDistributorData() {
+      const [distRes, ordersRes, wdRes] = await Promise.all([
+        api('/api/distributor/admin/list?key=' + ADMIN_KEY),
+        api('/api/distributor/admin/orders?key=' + ADMIN_KEY),
+        api('/api/distributor/admin/withdrawals?key=' + ADMIN_KEY)
+      ]);
+
+      const distContainer = document.getElementById('dist-admin-content');
+      if (!distContainer) return;
+
+      const distributors = distRes.distributors || [];
+      const orders = ordersRes.orders || [];
+      const withdrawals = wdRes.withdrawals || [];
+
+      const pendingOrders = orders.filter(o => o.status === 'pending');
+      const pendingWd = withdrawals.filter(w => w.status === 'pending');
+      const totalCommission = orders.filter(o => o.status === 'confirmed').reduce((s, o) => s + o.commission, 0);
+      const pendingCommission = pendingOrders.reduce((s, o) => s + o.commission, 0);
+
+      let html = `
+        <div class="dist-admin-stats">
+          <div class="dist-admin-stat"><div class="dist-admin-stat-num">${distributors.length}</div><div class="dist-admin-stat-label">推广员</div></div>
+          <div class="dist-admin-stat"><div class="dist-admin-stat-num">${pendingOrders.length}</div><div class="dist-admin-stat-label">待确认</div></div>
+          <div class="dist-admin-stat"><div class="dist-admin-stat-num">${pendingWd.length}</div><div class="dist-admin-stat-label">待提现</div></div>
+          <div class="dist-admin-stat"><div class="dist-admin-stat-num">¥${totalCommission.toFixed(1)}</div><div class="dist-admin-stat-label">已发佣金</div></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+          <span class="admin-tab ${currentDistTab === 'distributors' ? 'active' : ''} dist" onclick="switchDistTab('distributors')">推广员 (${distributors.length})</span>
+          <span class="admin-tab ${currentDistTab === 'orders' ? 'active' : ''}" onclick="switchDistTab('orders')">推广订单 (${pendingOrders.length}待确认)</span>
+          <span class="admin-tab ${currentDistTab === 'withdrawals' ? 'active' : ''}" onclick="switchDistTab('withdrawals')">提现申请 (${pendingWd.length}待处理)</span>
+          <span class="admin-tab ${currentDistTab === 'settings' ? 'active' : ''}" onclick="switchDistTab('settings')">⚙ 系统设置</span>
+        </div>
+        <div id="dist-admin-list"></div>
+      `;
+      distContainer.innerHTML = html;
+      renderDistributorList(distributors, orders, withdrawals);
+    }
+
+    function switchDistTab(tab) {
+      currentDistTab = tab;
+      loadDistributorData();
+    }
+
+    function renderDistributorList(distributors, orders, withdrawals) {
+      const container = document.getElementById('dist-admin-list');
+      if (!container) return;
+
+      if (currentDistTab === 'settings') {
+        // 加载配置
+        api('/api/distributor/admin/config?key=' + ADMIN_KEY).then(data => {
+          if (!data.success || !data.config) {
+            container.innerHTML = '<div class="admin-empty">加载失败</div>';
+            return;
+          }
+          const cfg = data.config;
+          container.innerHTML = `
+            <div class="dist-admin-config">
+              <h3>⚙ 分销系统配置</h3>
+              <div class="dist-admin-config-row">
+                <label>佣金比例</label>
+                <input type="number" id="cfg-rate" value="${cfg.commissionRate}" step="0.05" min="0" max="1" />
+                <div class="dist-admin-config-hint">当前：<span class="current">${Math.round(cfg.commissionRate * 100)}%</span>（输入 0~1 之间，如 0.3 = 30%）</div>
+              </div>
+              <div class="dist-admin-config-row">
+                <label>最低提现（¥）</label>
+                <input type="number" id="cfg-minwd" value="${cfg.minWithdrawal}" step="1" min="0" />
+                <div class="dist-admin-config-hint">当前：<span class="current">¥${cfg.minWithdrawal}</span>（推广员提现门槛）</div>
+              </div>
+              <div id="cfg-save-msg" style="color:#66bb6a;font-size:0.8rem;margin-bottom:8px;"></div>
+              <button class="btn-save-config" onclick="saveDistConfig()">保存配置</button>
+            </div>
+          `;
+        });
+        return;
+      }
+
+      if (currentDistTab === 'distributors') {
+        if (!distributors.length) {
+          container.innerHTML = '<div class="admin-empty">暂无推广员</div>';
+          return;
+        }
+        let html = `<div class="dist-admin-section"><h3>推广员列表</h3><table class="dist-admin-table">
+          <tr><th>昵称</th><th>代码</th><th>微信号</th><th>推广</th><th>佣金</th><th>可提现</th><th>状态</th><th>注册时间</th></tr>`;
+        distributors.forEach(d => {
+          const confirmed = orders.filter(o => o.distributorUid === d.uid && o.status === 'confirmed').length;
+          html += `<tr>
+            <td>${escHtml(d.name)}</td>
+            <td style="font-family:monospace;color:#f59e0b;">${d.code}</td>
+            <td>${escHtml(d.wechat)}</td>
+            <td>${d.totalReferrals || 0}</td>
+            <td>¥${(d.totalCommission || 0).toFixed(1)}</td>
+            <td>¥${(d.withdrawable || 0).toFixed(1)}</td>
+            <td><span class="dist-admin-badge ${d.status}">${d.status === 'active' ? '正常' : '停用'}</span></td>
+            <td style="font-size:0.6rem;">${new Date(d.createdAt).toLocaleDateString('zh-CN')}</td>
+          </tr>`;
+        });
+        html += '</table></div>';
+        container.innerHTML = html;
+      } else if (currentDistTab === 'orders') {
+        if (!orders.length) {
+          container.innerHTML = '<div class="admin-empty">暂无推广订单</div>';
+          return;
+        }
+        let html = `<div class="dist-admin-section"><h3>推广订单</h3><table class="dist-admin-table">
+          <tr><th>客户</th><th>类型</th><th>佣金</th><th>状态</th><th>时间</th><th>操作</th></tr>`;
+        orders.forEach(o => {
+          html += `<tr>
+            <td>${escHtml(o.customerName)}</td>
+            <td>${o.orderType === 'premium' ? '付费' : '免费'}</td>
+            <td>¥${(o.commission || 0).toFixed(2)}</td>
+            <td><span class="dist-admin-badge ${o.status}">${o.status === 'pending' ? '待确认' : o.status === 'confirmed' ? '已结算' : '已取消'}</span></td>
+            <td style="font-size:0.6rem;">${new Date(o.createdAt).toLocaleDateString('zh-CN')}</td>
+            <td>
+              ${o.status === 'pending' ? `
+                <div class="dist-admin-actions">
+                  <button class="dist-admin-btn confirm" onclick="confirmOrder('${o.id}')">确认</button>
+                  <button class="dist-admin-btn cancel" onclick="cancelOrder('${o.id}')">取消</button>
+                </div>
+              ` : '<span style="color:#575a85;">--</span>'}
+            </td>
+          </tr>`;
+        });
+        html += '</table></div>';
+        container.innerHTML = html;
+      } else if (currentDistTab === 'withdrawals') {
+        if (!withdrawals.length) {
+          container.innerHTML = '<div class="admin-empty">暂无提现申请</div>';
+          return;
+        }
+        let html = `<div class="dist-admin-section"><h3>提现申请</h3><table class="dist-admin-table">
+          <tr><th>姓名</th><th>微信号</th><th>金额</th><th>状态</th><th>申请时间</th><th>备注</th><th>操作</th></tr>`;
+        withdrawals.forEach(w => {
+          html += `<tr>
+            <td>${escHtml(w.name)}</td>
+            <td>${escHtml(w.wechat)}</td>
+            <td style="font-weight:600;">¥${(w.amount || 0).toFixed(2)}</td>
+            <td><span class="dist-admin-badge ${w.status}">${w.status === 'pending' ? '待处理' : w.status === 'approved' ? '已打款' : '已拒绝'}</span></td>
+            <td style="font-size:0.6rem;">${new Date(w.createdAt).toLocaleDateString('zh-CN')}</td>
+            <td>${w.status === 'pending' ? `<input class="dist-admin-note-input" id="wd-note-${w.id}" placeholder="备注" />` : escHtml(w.note || '')}</td>
+            <td>
+              ${w.status === 'pending' ? `
+                <div class="dist-admin-actions">
+                  <button class="dist-admin-btn approve" onclick="handleWithdrawal('${w.id}', 'approve')">打款</button>
+                  <button class="dist-admin-btn reject" onclick="handleWithdrawal('${w.id}', 'reject')">拒绝</button>
+                </div>
+              ` : '<span style="color:#575a85;">--</span>'}
+            </td>
+          </tr>`;
+        });
+        html += '</table></div>';
+        container.innerHTML = html;
+      }
+    }
+
+    async function confirmOrder(orderId) {
+      const res = await api('/api/distributor/admin/confirm-order?key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify({ orderId })
+      });
+      if (res.success) {
+        alert('佣金已发放');
+        loadDistributorData();
+      } else {
+        alert(res.error || '操作失败');
+      }
+    }
+
+    async function cancelOrder(orderId) {
+      if (!confirm('确定取消此订单？')) return;
+      const res = await api('/api/distributor/admin/cancel-order?key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify({ orderId })
+      });
+      if (res.success) {
+        loadDistributorData();
+      } else {
+        alert(res.error || '操作失败');
+      }
+    }
+
+    async function handleWithdrawal(withdrawalId, action) {
+      const actionLabel = action === 'approve' ? '打款' : '拒绝';
+      if (!confirm(`确定${actionLabel}此提现申请？`)) return;
+      const noteInput = document.getElementById(`wd-note-${withdrawalId}`);
+      const note = noteInput ? noteInput.value : '';
+      const res = await api('/api/distributor/admin/handle-withdrawal?key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify({ withdrawalId, action, note })
+      });
+      if (res.success) {
+        alert(`${actionLabel}成功`);
+        loadDistributorData();
+      } else {
+        alert(res.error || '操作失败');
+      }
+    }
+
+    async function saveDistConfig() {
+      const rate = parseFloat(document.getElementById('cfg-rate')?.value);
+      const minWd = parseFloat(document.getElementById('cfg-minwd')?.value);
+      const msgEl = document.getElementById('cfg-save-msg');
+      if (!msgEl) return;
+
+      const body = {};
+      if (!isNaN(rate)) body.commissionRate = rate;
+      if (!isNaN(minWd)) body.minWithdrawal = minWd;
+
+      const res = await api('/api/distributor/admin/config?key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify(body)
+      });
+      if (res.success) {
+        msgEl.textContent = '✅ 配置已保存';
+        setTimeout(() => { msgEl.textContent = ''; }, 3000);
+      } else {
+        msgEl.textContent = '❌ ' + (res.error || '保存失败');
+      }
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+  </script>
+</head>
+<body>
+  <div class="admin-page">
+    <div class="admin-header">
+      <h1>🔐 优势星测管理后台</h1>
+    </div>
+
+    <div id="login-form" class="admin-login">
+      <p style="color:#9a97b0;margin-bottom:12px;">请输入管理员密钥</p>
+      <input type="password" id="admin-key" placeholder="管理员密钥" onkeydown="if(event.key==='Enter')login()" />
+      <button onclick="login()">登录</button>
+      <p id="login-error" style="color:#ef5350;margin-top:8px;font-size:0.8rem;"></p>
+    </div>
+
+    <div id="admin-panel" style="display:none;">
+      <div class="admin-tabs">
+        <span class="admin-tab active" data-tab="pending" onclick="setTab('pending')">⏳ 待审核</span>
+        <span class="admin-tab" data-tab="approved" onclick="setTab('approved')">✅ 已通过</span>
+        <span class="admin-tab" data-tab="all" onclick="setTab('all')">📋 全部</span>
+        <span class="admin-tab dist" data-tab="dist" onclick="setTab('dist')">💰 分销</span>
+      </div>
+
+      <!-- 评论管理 -->
+      <div id="comment-area">
+        <div class="admin-stats">
+          <div class="admin-stat"><div class="admin-stat-num" id="stat-pending">0</div><div class="admin-stat-label">待审核</div></div>
+          <div class="admin-stat"><div class="admin-stat-num" id="stat-approved">0</div><div class="admin-stat-label">已通过</div></div>
+          <div class="admin-stat"><div class="admin-stat-num" id="stat-total">0</div><div class="admin-stat-label">全部</div></div>
+        </div>
+        <div id="comment-list"></div>
+      </div>
+
+      <!-- 分销管理 -->
+      <div id="dist-admin-content" style="display:none;"></div>
+    </div>
+  </div>
+  <script>
+    // 切换显示评论/分销区域
+    const origSetTab = setTab;
+    setTab = function(tab) {
+      origSetTab(tab);
+      const commentArea = document.getElementById('comment-area');
+      const distArea = document.getElementById('dist-admin-content');
+      if (tab === 'dist') {
+        commentArea.style.display = 'none';
+        distArea.style.display = 'block';
+      } else {
+        commentArea.style.display = 'block';
+        distArea.style.display = 'none';
+      }
+    };
+  </script>
+</body>
+</html>

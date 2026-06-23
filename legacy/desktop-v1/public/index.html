@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>星妈天赋测试｜基于星盘与脑科学的先天特质分析</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app" class="container">
+    <!-- Loading -->
+    <div id="page-loading" class="loading">
+      <div class="spinner"></div>
+      <p>加载中...</p>
+    </div>
+
+    <!-- Landing Page -->
+    <div id="page-landing" class="hidden">
+      <div class="app-header">
+        <h1>✦ 星妈天赋测试</h1>
+        <p>基于星盘与脑科学的先天特质分析</p>
+      </div>
+      <div style="padding-top:4px;">
+        <div class="card" onclick="navigateTo()" style="text-align:center;display:flex;flex-direction:column;align-items:center;padding:36px 24px;cursor:pointer;">
+          <div style="font-size:52px;margin-bottom:16px;opacity:0.9;">🌙</div>
+          <h3 style="font-size:20px;margin-bottom:12px;color:#D0D0F0;letter-spacing:1px;">开始天赋解读</h3>
+          <p style="font-size:13px;color:#7070A0;line-height:1.8;letter-spacing:0.3px;">
+            输入出生信息 · 解锁先天配置<br>
+            了解孩子的天赋方向与教育策略
+          </p>
+          <div style="margin-top:24px;width:100%;">
+            <div class="btn btn-primary">开始解读</div>
+          </div>
+        </div>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item"><span style="font-size:18px;opacity:0.7;">🧬</span><span>瑞士星历表精确计算 · 专业级星盘</span></div>
+        <div class="feature-item"><span style="font-size:18px;opacity:0.7;">🧠</span><span>脑科学 + 占星学交叉分析教育策略</span></div>
+        <div class="feature-item"><span style="font-size:18px;opacity:0.7;">📋</span><span>个性化学习风格诊断与行为指南</span></div>
+        <div class="feature-item"><span style="font-size:18px;opacity:0.7;">🎯</span><span>天赋倾向识别与发展路径建议</span></div>
+      </div>
+      <div style="text-align:center;padding:32px 0 20px;font-size:11px;color:#404060;letter-spacing:0.5px;">
+        基于 Swiss Ephemeris 精确天文计算
+      </div>
+    </div>
+
+    <!-- Star Test Page -->
+    <div id="page-star" class="hidden"></div>
+
+    <!-- Result Page -->
+    <div id="page-result" class="hidden"></div>
+  </div>
+
+  <script src="js/main.js"></script>
+  <script src="js/star-test.js"></script>
+</body>
+</html>
