@@ -32,9 +32,12 @@ const WECHAT_APPID = 'wxcb5d7e842424ad5b';
 // 微信支付相关
 let wechatOpenId = localStorage.getItem('wechat_openid') || '';
 
+// 用户系统
+let currentUser = JSON.parse(localStorage.getItem('user_info') || 'null');
+
 // ========== DOM ==========
 const $ = id => document.getElementById(id);
-const pages = { home: $('page-home'), form: $('page-form'), budget: $('page-budget'), loading: $('page-loading'), report: $('page-report') };
+const pages = { home: $('page-home'), form: $('page-form'), budget: $('page-budget'), loading: $('page-loading'), report: $('page-report'), user: $('page-user') };
 
 function showPage(name) {
   Object.values(pages).forEach(p => p?.classList.remove('active'));
@@ -300,6 +303,7 @@ async function doStarReport(formData, budget, grade) {
     setupAspectBadge(wheelResult);
     renderStep3();
     track('report_generated', { page: 'report', label: formData.version, meta: { type: currentTestType } });
+    autoSaveReport('star', formData.name, data.chart, data.report, data.version);
   } catch (err) {
     showToast('计算失败：' + err.message);
     showPage('form');
@@ -431,6 +435,7 @@ window.submitStrength = async function() {
     currentReport = data.data;
     renderStrengthReport(data.data, name);
     renderStep3();
+    autoSaveReport('strength', name, null, data.data, 'free');
   } catch (err) {
     showToast('生成失败，请重试');
     showPage('form');
@@ -594,6 +599,7 @@ window.submitMbti = function() {
 
   renderMbtiResult(result, crossData, eduData);
   renderStep3();
+  autoSaveReport('mbti', '', null, result, 'free');
 };
 
 function renderMbtiResult(result, crossData, eduData) {
@@ -1413,6 +1419,258 @@ async function handleWeChatOAuth() {
 
 // ========== END 支付相关 ==========
 
+// ================================================================
+//  用户系统（登录 / 历史记录）
+// ================================================================
+
+window.showUserPage = function() {
+  if (currentUser) {
+    renderUserProfile();
+  } else {
+    renderUserLogin();
+  }
+  showPage('user');
+};
+
+window.closeUserPage = function() {
+  if (currentUser) showPage('home');
+  else showPage('home');
+};
+
+function renderUserLogin() {
+  // 检查是否是微信浏览器
+  const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
+
+  $('user-content').innerHTML = `
+    <div style="padding:40px 20px;text-align:center;">
+      <div style="font-size:3rem;margin-bottom:12px;">👤</div>
+      <h2 style="color:#E2E8F0;font-size:1.2rem;margin-bottom:6px;">登录账号</h2>
+      <p style="color:#64748B;font-size:0.85rem;margin-bottom:24px;">登录后可同步你的测试记录</p>
+
+      ${isWeChat ? `
+        <button class="btn-next" onclick="wechatLogin()" style="width:100%;max-width:280px;padding:14px 0;">
+          微信一键登录
+        </button>
+        <p style="color:#475569;font-size:0.75rem;margin-top:10px;">微信授权仅获取OpenID，不会获取个人信息</p>
+      ` : `
+        <div style="background:#0F172A;border-radius:12px;padding:20px;max-width:320px;margin:0 auto;">
+          <p style="color:#94A3B8;font-size:0.85rem;margin-bottom:12px;">请填写昵称快速体验</p>
+          <input class="input-field" id="guest-name" placeholder="你的昵称" maxlength="12"
+            style="width:100%;box-sizing:border-box;text-align:center;" />
+          <button class="btn-next" onclick="guestLogin()" style="width:100%;margin-top:12px;padding:12px 0;">
+            进入
+          </button>
+        </div>
+        <p style="color:#475569;font-size:0.75rem;margin-top:12px;">
+          在微信中打开可自动登录，同步多设备记录
+        </p>
+      `}
+    </div>`;
+}
+
+// 微信登录
+window.wechatLogin = function() {
+  const appId = WECHAT_APPID;
+  if (!appId) { showToast('微信登录暂未配置'); return; }
+  const redirectUri = encodeURIComponent(window.location.href.split('?')[0]);
+  const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appId}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=login#wechat_redirect`;
+  sessionStorage.setItem('oauth_return', 'login');
+  window.location.href = oauthUrl;
+};
+
+// 访客登录
+window.guestLogin = function() {
+  const name = ($('guest-name')?.value || '').trim() || '访客';
+  const guestId = 'guest_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  currentUser = { userId: guestId, openId: guestId, nickName: name, traits: {}, createdAt: new Date().toISOString() };
+  localStorage.setItem('user_info', JSON.stringify(currentUser));
+  showToast('欢迎，' + name);
+  renderUserProfile();
+};
+
+function renderUserProfile() {
+  const user = currentUser;
+  if (!user) { renderUserLogin(); return; }
+
+  // 加载报告列表
+  loadUserReports(user.openId).then(reports => {
+    const count = reports.length;
+    const paidCount = reports.filter(r => r.paid).length;
+    const lastReport = reports[0];
+
+    $('user-content').innerHTML = `
+      <div style="padding:20px;">
+        <div style="text-align:center;padding:16px 0 20px;border-bottom:1px solid #1A2332;">
+          <div style="font-size:2.4rem;margin-bottom:6px;">👤</div>
+          <h2 style="color:#E2E8F0;font-size:1.1rem;">${user.nickName}</h2>
+          <p style="color:#64748B;font-size:0.8rem;margin-top:4px;">
+            ${count} 份报告 · ${paidCount} 次付费
+          </p>
+        </div>
+
+        <div style="margin-top:16px;">
+          <h4 style="color:#94A3B8;font-size:0.85rem;margin-bottom:10px;">
+            📋 我的报告（${count}）
+          </h4>
+          ${count === 0 ? `
+            <div style="text-align:center;padding:30px 0;color:#475569;font-size:0.85rem;">
+              还没有生成过报告<br>
+              <span style="cursor:pointer;color:#38BDF8;" onclick="goHome();closeUserPage();">
+                去首页开始测试 →
+              </span>
+            </div>
+          ` : `
+            <div class="user-report-list">
+              ${reports.map(r => `
+                <div class="user-report-item" onclick="viewUserReport('${r.id}')">
+                  <div class="user-report-icon">${getReportIcon(r.type)}</div>
+                  <div class="user-report-info">
+                    <div class="user-report-name">${r.name || '未命名'} <span class="user-report-type">${getReportTypeName(r.type)}</span></div>
+                    <div class="user-report-meta">${formatDate(r.createdAt)} ${r.paid ? '· 深度版' : ''}</div>
+                  </div>
+                  <span class="user-report-badge ${r.paid ? 'paid' : 'free'}">${r.paid ? '深度' : '免费'}</span>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+        <div style="text-align:center;margin-top:20px;padding-bottom:20px;">
+          <button class="btn btn-prev" onclick="logoutUser()" style="width:100%;max-width:200px;">
+            退出登录
+          </button>
+        </div>
+      </div>`;
+  }).catch(() => {
+    // 离线状态也能看本地报告
+    $('user-content').innerHTML = `<div style="padding:20px;text-align:center;color:#64748B;">加载失败</div>`;
+  });
+}
+
+function getReportIcon(type) {
+  return type === 'star' ? '🔯' : type === 'mbti' ? '🧠' : '💪';
+}
+
+function getReportTypeName(type) {
+  return type === 'star' ? '星盘' : type === 'mbti' ? 'MBTI' : '性格优势';
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toISOString().slice(0, 10).replace(/-/g, '.');
+}
+
+async function loadUserReports(openId) {
+  try {
+    const resp = await fetch(`/api/user/reports?openId=${encodeURIComponent(openId)}`);
+    const data = await resp.json();
+    return data.reports || [];
+  } catch { return []; }
+}
+
+window.viewUserReport = async function(reportId) {
+  try {
+    const resp = await fetch(`/api/user/report/${reportId}`);
+    const data = await resp.json();
+    if (!data.success || !data.report) { showToast('报告不存在'); return; }
+    const r = data.report;
+
+    // 恢复报告
+    if (r.type === 'mbti') {
+      if (r.reportData) {
+        currentReport = { type: 'mbti', mbtiResult: r.reportData };
+        currentTestType = 'mbti';
+        renderMbtiResult(r.reportData, null);
+        renderStep3();
+      }
+    } else if (r.type === 'star') {
+      if (r.chartData && r.reportData) {
+        currentReport = { chart: r.chartData, report: r.reportData, version: r.version };
+        currentTestType = 'star';
+        renderReport(r.reportData, r.version);
+        if (r.chartData?.planets) {
+          setTimeout(() => drawChartWheel('chart-wheel', r.chartData), 100);
+        }
+        renderStep3();
+      }
+    } else if (r.type === 'strength') {
+      if (r.reportData) {
+        currentReport = { data: r.reportData };
+        currentTestType = 'strength';
+        renderStrengthReport(r.reportData, r.name || '');
+        renderStep3();
+      }
+    }
+  } catch { showToast('加载失败'); }
+};
+
+window.logoutUser = function() {
+  currentUser = null;
+  localStorage.removeItem('user_info');
+  showToast('已退出');
+  renderUserLogin();
+};
+
+// 自动保存报告
+async function autoSaveReport(type, name, chartData, reportData, version) {
+  if (!currentUser) return;
+  // 访客用户不同步到服务器
+  if (currentUser.openId && currentUser.openId.startsWith('guest_')) {
+    // 存本地
+    const local = JSON.parse(localStorage.getItem('local_reports') || '[]');
+    local.unshift({ id: Date.now().toString(36), type, name, reportData, version, createdAt: new Date().toISOString() });
+    localStorage.setItem('local_reports', JSON.stringify(local.slice(0, 20)));
+    return;
+  }
+  try {
+    await fetch('/api/user/reports/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        openId: currentUser.openId, type, name,
+        chartData: chartData || null,
+        reportData: reportData || null,
+        version: version || 'free',
+      }),
+    });
+  } catch { /* 静默失败，不影响用户体验 */ }
+}
+
+// 检查微信 OAuth 回调（登录用）
+async function handleLoginOAuth() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const returnAction = sessionStorage.getItem('oauth_return');
+
+  if (!code || returnAction !== 'login') return;
+
+  try {
+    const resp = await fetch('/api/user/wxlogin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const data = await resp.json();
+    if (data.success && data.user) {
+      currentUser = data.user;
+      localStorage.setItem('user_info', JSON.stringify(data.user));
+      showToast('微信登录成功');
+
+      // 清除 URL 参数
+      const url = new URL(window.location);
+      url.searchParams.delete('code');
+      url.searchParams.delete('state');
+      window.history.replaceState({}, '', url);
+      sessionStorage.removeItem('oauth_return');
+    }
+  } catch (err) {
+    console.error('[用户] 登录失败:', err);
+  }
+}
+
+// ================================================================
+//  用户系统 END
+// ================================================================
+
 function createTalentModal() {
   const dialog = document.createElement('dialog');
   dialog.id = 'talent-modal';
@@ -2191,6 +2449,8 @@ function trackReportSectionViews() {
 document.addEventListener('DOMContentLoaded', () => {
   showPage('home');
   track('app_load', { label: 'v2.0' });
-  // 检查微信 OAuth 回调
+
+  // 检查微信 OAuth 回调（支付 + 登录）
   handleWeChatOAuth();
+  handleLoginOAuth();
 });

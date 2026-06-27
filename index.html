@@ -92,7 +92,20 @@
           </div>
         </div>
       </div>
-      <div class="home-footer">已服务 1,000+ 用户 · <a href="/admin.html" style="color:rgba(255,255,255,0.15);text-decoration:none;font-size:0.7rem;">管理</a></div>
+      <div class="home-footer">
+        <span style="font-size:0.75rem;color:rgba(255,255,255,0.3);">已服务 1,000+ 用户</span>
+        <span style="font-size:0.75rem;color:rgba(255,255,255,0.3);cursor:pointer;" onclick="showUserPage()">👤 我的</span>
+        <a href="/admin.html" style="color:rgba(255,255,255,0.15);text-decoration:none;font-size:0.7rem;">管理</a>
+      </div>
+    </section>
+
+    <!-- ====== 用户中心 ====== -->
+    <section id="page-user" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="closeUserPage()">← 返回</button>
+        <span class="step-indicator">我的</span>
+      </div>
+      <div id="user-content"><!-- JS 渲染 --></div>
     </section>
 
     <!-- ====== Step2: 信息填写 ====== -->

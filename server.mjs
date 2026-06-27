@@ -32,6 +32,7 @@ const kbModule = await import('./api/knowledge-base.mjs');
 const { buildSystemPrompt, buildChartPrompt, parseReportResponse } = kbModule;
 const dist = await import('./api/distribution.mjs');
 const wechatPay = await import('./api/wechat-pay.mjs');
+const userApi = await import('./api/user.mjs');
 
 // DeepSeek 配置
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
@@ -498,6 +499,99 @@ http.createServer(async (req, res) => {
     const order = wechatPay.getOrder(params.outTradeNo);
     if (!order) { sendJSON(res, 404, { success: false, error: '订单不存在' }); return; }
     sendJSON(res, 200, { success: true, order: { status: order.status, paidAt: order.paidAt } });
+    return;
+  }
+
+  // ========== 用户系统 API ==========
+
+  // 微信登录
+  if (req.url === '/api/user/wxlogin' && req.method === 'POST') {
+    parseJSONBody(req).then(async body => {
+      const { code, nickName } = body;
+      if (!code) { sendJSON(res, 400, { success: false, error: '缺少 code' }); return; }
+      try {
+        const openId = await wechatPay.getOpenId(code);
+        const user = userApi.findOrCreateUser(openId, nickName);
+        userApi.trackUserEvent(openId, 'login', { method: 'wechat' });
+        sendJSON(res, 200, { success: true, user });
+      } catch (err) {
+        sendJSON(res, 500, { success: false, error: err.message });
+      }
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 获取用户信息+画像
+  if (req.url.startsWith('/api/user/profile') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+    const profile = userApi.getUserProfile(params.openId);
+    if (!profile) { sendJSON(res, 404, { success: false, error: '用户不存在' }); return; }
+    sendJSON(res, 200, { success: true, profile });
+    return;
+  }
+
+  // 获取用户报告列表
+  if (req.url.startsWith('/api/user/reports') && req.method === 'GET' && !req.url.includes('/report/')) {
+    const params = getURLParams(req.url);
+    if (!params.openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+    const reports = userApi.getUserReports(params.openId);
+    sendJSON(res, 200, { success: true, reports });
+    return;
+  }
+
+  // 获取单条报告
+  if (req.url.match(/^\/api\/user\/report\/(rpt_[a-z0-9]+)/) && req.method === 'GET') {
+    const reportId = req.url.match(/^\/api\/user\/report\/(rpt_[a-z0-9]+)/)[1];
+    const report = userApi.getReportById(reportId);
+    if (!report) { sendJSON(res, 404, { success: false, error: '报告不存在' }); return; }
+    sendJSON(res, 200, { success: true, report });
+    return;
+  }
+
+  // 保存报告
+  if (req.url === '/api/user/reports/save' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { openId, type, name, chartData, reportData, version } = body;
+      if (!openId || !type) { sendJSON(res, 400, { success: false, error: '缺少必填字段' }); return; }
+      const report = userApi.saveUserReport({ openId, type, name, chartData, reportData, version });
+      userApi.trackUserEvent(openId, 'report_saved', { type, name, version });
+      userApi.updateUserTraits(openId, { lastTestType: type, lastTestAt: new Date().toISOString() });
+      sendJSON(res, 200, { success: true, report });
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 删除报告
+  if (req.url.startsWith('/api/user/report/') && req.method === 'DELETE') {
+    const match = req.url.match(/^\/api\/user\/report\/(rpt_[a-z0-9]+)/);
+    if (!match) { sendJSON(res, 400, { success: false, error: '无效报告ID' }); return; }
+    const params = getURLParams(req.url);
+    if (!params.openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+    const deleted = userApi.deleteReport(match[1], params.openId);
+    sendJSON(res, deleted ? 200 : 404, { success: deleted });
+    return;
+  }
+
+  // 记录用户事件
+  if (req.url === '/api/user/track' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { openId, event, meta } = body;
+      if (!openId || !event) { sendJSON(res, 200, { success: true }); return; }
+      userApi.trackUserEvent(openId, event, meta || {});
+      sendJSON(res, 200, { success: true });
+    }).catch(() => sendJSON(res, 200, { success: true }));
+    return;
+  }
+
+  // 更新用户画像
+  if (req.url === '/api/user/traits' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { openId, traits } = body;
+      if (!openId || !traits) { sendJSON(res, 400, { success: false, error: '缺少参数' }); return; }
+      const result = userApi.updateUserTraits(openId, traits);
+      sendJSON(res, 200, { success: true, traits: result });
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
     return;
   }
 

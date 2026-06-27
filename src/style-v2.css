@@ -866,6 +866,26 @@ h1, h2, h3, .home-logo {
 
 /* MBTI 教育解读 */
 .mbti-edu-section { margin-top: 8px; }
+
+/* 用户系统 */
+.user-report-list { display: flex; flex-direction: column; gap: 8px; }
+.user-report-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  background: #0F172A; cursor: pointer;
+  border: 1px solid #1A2332; transition: all 0.2s;
+}
+.user-report-item:hover { border-color: rgba(56,189,248,0.2); background: #141A40; }
+.user-report-icon { font-size: 1.4rem; }
+.user-report-info { flex: 1; min-width: 0; }
+.user-report-name { font-size: 0.85rem; color: #E2E8F0; display: flex; align-items: center; gap: 6px; }
+.user-report-type { font-size: 0.7rem; color: #64748B; }
+.user-report-meta { font-size: 0.72rem; color: #475569; margin-top: 2px; }
+.user-report-badge {
+  font-size: 0.65rem; padding: 2px 8px; border-radius: 8px; flex-shrink: 0;
+}
+.user-report-badge.free { background: rgba(100,116,139,0.15); color: #64748B; }
+.user-report-badge.paid { background: rgba(56,189,248,0.12); color: #38BDF8; }
 .mbti-edu-section .sr-card { border-color: rgba(74,222,128,0.12); }
 .mbti-edu-section .sr-card h4 { color: #4ADE80; }
 
