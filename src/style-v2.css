@@ -135,6 +135,7 @@ h1, h2, h3, .home-logo {
   color: #fff;
 }
 .strength-icon { background: rgba(74,222,128,0.1); color: #4ADE80; }
+.mbti-icon     { background: rgba(251,146,60,0.1); color: #FB923C; }
 .star-icon     { background: rgba(56,189,248,0.1); color: #38BDF8; }
 .talent-icon   { background: rgba(167,139,250,0.1); color: #A78BFA; }
 
@@ -790,6 +791,78 @@ h1, h2, h3, .home-logo {
 }
 .btn-next:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(56,189,248,0.25); }
 .btn-next:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+/* =============================================
+   MBTI 测试
+   ============================================= */
+.mbti-options { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.mbti-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #1A2332;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+}
+.mbti-opt:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.03); }
+.mbti-opt.selected { border-color: #38BDF8; background: rgba(56,189,248,0.06); }
+.mbti-opt-label {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #1A2332;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.mbti-opt.selected .mbti-opt-label { background: #38BDF8; color: #060A1A; }
+.mbti-opt-text { font-size: 0.9rem; color: #CBD5E1; line-height: 1.5; }
+.mbti-opt.selected .mbti-opt-text { color: #E2E8F0; }
+
+/* MBTI 结果 */
+.mbti-result { max-width: 420px; margin: 0 auto; padding: 8px 0 20px; }
+.mbti-header { text-align: center; padding: 12px 0 18px; }
+.mbti-badge-wrap { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.mbti-emoji { font-size: 2rem; }
+.mbti-type-badge {
+  display: inline-block;
+  padding: 4px 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #38BDF8, #818CF8);
+  color: #060A1A;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+.mbti-name-badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 20px;
+  background: rgba(56,189,248,0.1);
+  color: #38BDF8;
+  font-size: 0.9rem;
+  border: 1px solid rgba(56,189,248,0.2);
+}
+.mbti-title { color: #94A3B8; font-size: 0.9rem; margin-top: 6px; }
+
+/* MBTI 维度条 */
+.mbti-dims { display: flex; flex-direction: column; gap: 10px; }
+.mbti-dim { display: flex; align-items: center; gap: 10px; }
+.mbti-dim-label { width: 72px; font-size: 0.78rem; color: #94A3B8; flex-shrink: 0; text-align: right; }
+.mbti-dim-bar-wrap { flex: 1; height: 6px; border-radius: 3px; background: #1A2332; overflow: hidden; }
+.mbti-dim-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #38BDF8, #818CF8); transition: width 0.6s ease; }
+.mbti-dim-pct { width: 36px; font-size: 0.75rem; color: #64748B; text-align: right; }
+
+/* MBTI × 星盘交叉解读 */
+.mbti-cross-section { margin-top: 8px; }
+.mbti-cross-section .sr-card { border-color: rgba(56,189,248,0.15); }
+.mbti-cross-section .sr-card h4 { color: #A78BFA; }
 
 /* =============================================
    Strength Result

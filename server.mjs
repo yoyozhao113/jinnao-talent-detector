@@ -12,6 +12,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMMENTS_FILE = join(__dirname, 'comments.json');
 const TRACKING_FILE = join(__dirname, 'tracking.json');
 const ADMIN_KEY = 'momadmin888'; // 管理员密钥，简单够用就行
+const REPORT_COUNTER_FILE = join(__dirname, 'report_counter.json');
+
+function getReportCount() {
+  try { return JSON.parse(fs.readFileSync(REPORT_COUNTER_FILE, 'utf-8')).count || 0; }
+  catch { return 0; }
+}
+function incrementReportCount() {
+  const count = getReportCount() + 1;
+  fs.writeFileSync(REPORT_COUNTER_FILE, JSON.stringify({ count }), 'utf-8');
+  return count;
+}
 
 const { calculateBirthChart } = await import('./api/utils/astrology.mjs');
 const chartModule = await import('./api/chart.mjs');
@@ -20,12 +31,13 @@ const getChartFallback = chartModule.getFallbackReport;
 const kbModule = await import('./api/knowledge-base.mjs');
 const { buildSystemPrompt, buildChartPrompt, parseReportResponse } = kbModule;
 const dist = await import('./api/distribution.mjs');
+const wechatPay = await import('./api/wechat-pay.mjs');
 
 // DeepSeek 配置
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_BASE = process.env.DEEPSEEK_BASE || 'https://api.deepseek.com';
 
-http.createServer((req, res) => {
+http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -80,18 +92,28 @@ http.createServer((req, res) => {
           }
         }
 
+        // === 前100份免费策略 ===
+        const totalCount = incrementReportCount();
+        const isFreePromo = totalCount <= 100;
+        const actualVersion = isFreePromo ? 'paid' : (d.version || 'free');
+        if (isFreePromo) {
+          console.log(`[免费活动] 第${totalCount}份报告，免费赠送完整版`);
+        } else {
+          console.log(`[免费活动] 已超过100份（第${totalCount}份），恢复正常付费`);
+        }
+
         // 尝试用 DeepSeek + 知识库生成报告
         let report;
         try {
-          report = await callDeepSeekChart(chart, d.name || '宝贝', d.version || 'free', d.budget, d.grade);
+          report = await callDeepSeekChart(chart, d.name || '宝贝', actualVersion, d.budget, d.grade);
         } catch (aiErr) {
           console.warn('DeepSeek 报告生成失败，使用本地回退:', aiErr.message);
-          report = getChartFallback(chart, d.name || '宝贝', d.version || 'free', d.budget, d.grade);
+          report = getChartFallback(chart, d.name || '宝贝', actualVersion, d.budget, d.grade);
         }
 
         console.log('[API] 响应发送成功');
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, chart: chart.basic, report, version: d.version }));
+        res.end(JSON.stringify({ success: true, chart: chart.basic, report, version: actualVersion, promoRemaining: isFreePromo ? (100 - totalCount) : 0 }));
       } catch (err) {
         console.error('[API] 错误:', err.message, err.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -404,8 +426,88 @@ http.createServer((req, res) => {
     return;
   }
 
+  // ========== 微信 OAuth ==========
+
+  if (req.url.startsWith('/api/wechat/oauth') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.code) { sendJSON(res, 400, { success: false, error: '缺少 code' }); return; }
+    try {
+      const openId = await wechatPay.getOpenId(params.code);
+      sendJSON(res, 200, { success: true, openId });
+    } catch (err) {
+      console.error('[OAuth] 错误:', err.message);
+      sendJSON(res, 500, { success: false, error: err.message });
+    }
+    return;
+  }
+
+  // ========== 微信支付 ==========
+
+  // 创建支付订单
+  if (req.url === '/api/payment/create-order' && req.method === 'POST') {
+    parseJSONBody(req).then(async body => {
+      const { openId, amount = 9.9 } = body;
+      if (!openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+      try {
+        const result = await wechatPay.createUnifiedOrder({
+          openId,
+          amount,
+          description: '优势星测 - 深度版报告',
+        });
+        wechatPay.savePaymentOrder({
+          outTradeNo: result.outTradeNo,
+          openId,
+          amount,
+          description: '优势星测 - 深度版报告',
+        });
+        sendJSON(res, 200, { success: true, ...result });
+      } catch (err) {
+        console.error('[支付] 创建订单失败:', err.message);
+        sendJSON(res, 500, { success: false, error: err.message });
+      }
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 微信支付回调通知
+  if (req.url === '/api/payment/notify' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      const { valid, params } = wechatPay.verifyNotification(body);
+      if (!valid) {
+        console.error('[支付回调] 签名验证失败');
+        res.writeHead(200, { 'Content-Type': 'application/xml' });
+        res.end(buildXMLReply('FAIL', '签名失败'));
+        return;
+      }
+      if (params.result_code === 'SUCCESS') {
+        wechatPay.markOrderPaid(params.out_trade_no, params.transaction_id);
+        console.log('[支付回调] 订单已支付:', params.out_trade_no, '金额:', params.total_fee);
+      }
+      res.writeHead(200, { 'Content-Type': 'application/xml' });
+      res.end(buildXMLReply('SUCCESS', 'OK'));
+    });
+    return;
+  }
+
+  // 检查支付状态
+  if (req.url.startsWith('/api/payment/status') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.outTradeNo) { sendJSON(res, 400, { success: false, error: '缺少 outTradeNo' }); return; }
+    const order = wechatPay.getOrder(params.outTradeNo);
+    if (!order) { sendJSON(res, 404, { success: false, error: '订单不存在' }); return; }
+    sendJSON(res, 200, { success: true, order: { status: order.status, paidAt: order.paidAt } });
+    return;
+  }
+
   res.writeHead(404); res.end();
 }).listen(3002, () => console.log('✓ 服务: http://localhost:3002'));
+
+// ========== 微信支付回调 XML 回复 ==========
+function buildXMLReply(code, msg) {
+  return `<xml><return_code><![CDATA[${code}]]></return_code><return_msg><![CDATA[${msg}]]></return_msg></xml>`;
+}
 
 // === DeepSeek API ===
 async function callDeepSeek(answers, name) {

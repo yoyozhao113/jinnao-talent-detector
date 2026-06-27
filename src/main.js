@@ -5,9 +5,11 @@
 import { CITIES } from './data/cities.js';
 import { drawChartWheel } from './chart-wheel.mjs';
 import track from './tracker.mjs';
+import { MBTI_QUESTIONS, calculateMBTI } from './mbti-data.js';
+import { getMbtiAstroCross } from './mbti-astro.js';
 
 // ========== State ==========
-let currentTestType = null;   // 'strength' | 'star'
+let currentTestType = null;   // 'strength' | 'star' | 'mbti'
 let currentReport = null;
 let currentVersion = 'free';
 
@@ -17,8 +19,17 @@ let starFormData = null;
 // 性格测试状态
 let strengthState = { current: 0, answers: {} };
 
+// MBTI 测试状态
+let mbtiState = { current: 0, answers: {} };
+
 // 微信号
 const CONTACT_WECHAT = 'yoyozhao1341';
+
+// 微信支付 AppID（公众号 AppID，用于 OAuth 跳转）
+const WECHAT_APPID = 'wxcb5d7e842424ad5b';
+
+// 微信支付相关
+let wechatOpenId = localStorage.getItem('wechat_openid') || '';
 
 // ========== DOM ==========
 const $ = id => document.getElementById(id);
@@ -45,6 +56,7 @@ function goToStep3() { showPage('report'); }
 // ========== 渲染 Step 2 ==========
 function renderForm(type) {
   if (type === 'star') renderStarForm();
+  else if (type === 'mbti') renderMbtiQuiz();
   else renderStrengthQuiz();
 }
 
@@ -53,9 +65,15 @@ function renderStep3() {
   if (currentTestType === 'star') {
     $('star-report-area').classList.remove('hidden');
     $('strength-report-area').classList.add('hidden');
+    $('mbti-report-area').classList.add('hidden');
+  } else if (currentTestType === 'mbti') {
+    $('star-report-area').classList.add('hidden');
+    $('strength-report-area').classList.add('hidden');
+    $('mbti-report-area').classList.remove('hidden');
   } else {
     $('star-report-area').classList.add('hidden');
     $('strength-report-area').classList.remove('hidden');
+    $('mbti-report-area').classList.add('hidden');
   }
   goToStep3();
 }
@@ -274,6 +292,8 @@ async function doStarReport(formData, budget, grade) {
     if (!data.success) throw new Error(data.error || '计算失败');
 
     currentReport = data;
+    // 保存星盘数据到 localStorage（供 MBTI 交叉解读使用）
+    localStorage.setItem('astro_chart', JSON.stringify(data.chart));
     renderReport(data.report, formData.version);
     const wheelResult = drawChartWheel('chart-wheel', data.chart);
     setupAspectBadge(wheelResult);
@@ -460,6 +480,255 @@ function renderFormattedAdvice(text) {
 }
 
 // ================================================================
+//  MBTI 人格测试
+// ================================================================
+
+function renderMbtiQuiz() {
+  mbtiState = { current: 0, answers: {} };
+
+  $('form-content').innerHTML = `
+    <div class="quiz-container">
+      <div class="quiz-header">
+        <h2>MBTI 人格类型测试</h2>
+        <p>共 ${MBTI_QUESTIONS.length} 题，每题二选一，预计 3 分钟</p>
+      </div>
+      <div id="mbti-quiz-area">
+        <div class="quiz-progress">
+          <div class="quiz-bar"><div class="quiz-fill" id="mbti-fill" style="width:0%"></div></div>
+          <div class="quiz-count" id="mbti-count">1 / ${MBTI_QUESTIONS.length}</div>
+        </div>
+        <div class="mbti-question" id="mbti-question"></div>
+        <div class="mbti-options" id="mbti-options"></div>
+        <div class="quiz-nav">
+          <button class="btn btn-prev" id="mbti-prev" onclick="mbtiPrev()" style="display:none;">← 上一题</button>
+          <button class="btn btn-next" id="mbti-next" onclick="mbtiNext()">下一题 →</button>
+        </div>
+      </div>
+      <div id="mbti-submit-area" class="hidden" style="text-align:center;padding:30px 0;">
+        <p style="font-size:1rem;margin-bottom:6px;color:#e8e6f0;">所有题目已答完！</p>
+        <p style="font-size:0.85rem;color:#8888a0;margin-bottom:16px;">正在计算你的人格类型...</p>
+        <button class="btn-next" onclick="submitMbti()">查看结果</button>
+      </div>
+    </div>`;
+
+  showMbtiQuestion(0);
+}
+
+function showMbtiQuestion(idx) {
+  const q = MBTI_QUESTIONS[idx];
+  const total = MBTI_QUESTIONS.length;
+  $('mbti-fill').style.width = `${((idx + 1) / total) * 100}%`;
+  $('mbti-count').textContent = `${idx + 1} / ${total}`;
+
+  const dimLabels = { EI: '外向 E  vs  I 内向', SN: '感觉 S  vs  N 直觉', TF: '思维 T  vs  F 情感', JP: '判断 J  vs  P 感知' };
+
+  $('mbti-question').innerHTML = `
+    <span class="quiz-cat">${dimLabels[q.dim]}</span>
+    <p style="font-size:1.1rem;margin-top:8px;">${idx + 1}. 你更偏向？</p>`;
+
+  const selected = mbtiState.answers[q.id];
+  $('mbti-options').innerHTML = `
+    <div class="mbti-opt ${selected === 'a' ? 'selected' : ''}" onclick="mbtiSelect('a')">
+      <span class="mbti-opt-label">A</span>
+      <span class="mbti-opt-text">${q.a}</span>
+    </div>
+    <div class="mbti-opt ${selected === 'b' ? 'selected' : ''}" onclick="mbtiSelect('b')">
+      <span class="mbti-opt-label">B</span>
+      <span class="mbti-opt-text">${q.b}</span>
+    </div>`;
+
+  $('mbti-prev').style.display = idx === 0 ? 'none' : 'block';
+  $('mbti-next').textContent = idx === total - 1 ? '完成' : '下一题 →';
+}
+
+window.mbtiSelect = (val) => {
+  const q = MBTI_QUESTIONS[mbtiState.current];
+  mbtiState.answers[q.id] = val;
+  document.querySelectorAll('#mbti-options .mbti-opt').forEach(el => {
+    el.classList.toggle('selected', el.querySelector('.mbti-opt-label')?.textContent.toLowerCase() === val);
+  });
+};
+
+window.mbtiNext = () => {
+  const q = MBTI_QUESTIONS[mbtiState.current];
+  if (!mbtiState.answers[q.id]) { showToast('请选择一个选项'); return; }
+  if (mbtiState.current === MBTI_QUESTIONS.length - 1) {
+    $('mbti-quiz-area').classList.add('hidden');
+    $('mbti-submit-area').classList.remove('hidden');
+    return;
+  }
+  mbtiState.current++;
+  showMbtiQuestion(mbtiState.current);
+};
+
+window.mbtiPrev = () => {
+  if (mbtiState.current > 0) { mbtiState.current--; showMbtiQuestion(mbtiState.current); }
+};
+
+window.submitMbti = function() {
+  const result = calculateMBTI(mbtiState.answers);
+
+  // 存到全局以便分享等
+  currentReport = { type: 'mbti', mbtiResult: result };
+
+  // 保存到 localStorage 历史
+  const history = JSON.parse(localStorage.getItem('mbti_history') || '[]');
+  history.unshift({ type: result.type, name: result.name, date: new Date().toISOString().slice(0, 10) });
+  localStorage.setItem('mbti_history', JSON.stringify(history.slice(0, 10)));
+
+  // 保存 MBTI 结果供星盘页面交叉引用
+  localStorage.setItem('mbti_result', JSON.stringify({ type: result.type, name: result.name, title: result.title }));
+
+  // 星盘交叉解读（如果有星盘数据）
+  let crossData = null;
+  try {
+    const astroChart = JSON.parse(localStorage.getItem('astro_chart'));
+    if (astroChart?.planets) {
+      crossData = getMbtiAstroCross(result, astroChart.planets);
+    }
+  } catch (e) { /* 无星盘数据 */ }
+
+  renderMbtiResult(result, crossData);
+  renderStep3();
+};
+
+function renderMbtiResult(result, crossData) {
+  const ds = result.dimensionScores;
+  $('mbti-result').innerHTML = `
+    <div class="mbti-header">
+      <div class="mbti-badge-wrap">
+        <span class="mbti-emoji">${result.emoji}</span>
+        <span class="mbti-type-badge">${result.type}</span>
+        <span class="mbti-name-badge">${result.name}</span>
+      </div>
+      <p class="mbti-title">${result.title}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>📊 维度倾向</h4>
+      <div class="mbti-dims">
+        ${['EI', 'SN', 'TF', 'JP'].map(d => `
+          <div class="mbti-dim">
+            <div class="mbti-dim-label">${ds[d].label}</div>
+            <div class="mbti-dim-bar-wrap">
+              <div class="mbti-dim-bar" style="width:${ds[d].percent}%"></div>
+            </div>
+            <div class="mbti-dim-pct">${ds[d].percent}%</div>
+          </div>
+        `).join('')}
+      </div>
+      <p style="font-size:0.78rem;color:#64748B;margin-top:8px;text-align:center;">
+        倾向强度：${ds.EI.tendency} · ${ds.SN.tendency} · ${ds.TF.tendency} · ${ds.JP.tendency}
+      </p>
+    </div>
+
+    <div class="sr-card">
+      <h4>🧩 认知功能栈</h4>
+      <p style="font-size:0.82rem;color:#38BDF8;margin-bottom:8px;">${result.cognitiveStack}</p>
+      <p>${result.cognitiveDesc}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>🔍 性格解读</h4>
+      <p>${result.summary}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>💪 核心优势</h4>
+      <p>${result.strength}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>⚠️ 需要注意</h4>
+      <p>${result.weakness}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>🌱 成长建议</h4>
+      <p>${result.growth}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>💬 沟通风格</h4>
+      <p>${result.communication}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>💼 适合领域</h4>
+      <p>${result.career}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>💕 亲密关系</h4>
+      <p>${result.relationship}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>🔗 适合伴侣</h4>
+      <p>${result.compatible}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>⭐ 同类型名人</h4>
+      <p>${result.famous}</p>
+    </div>
+
+    ${crossData ? `
+    <div class="mbti-cross-section">
+      <h3 style="text-align:center;color:#38BDF8;margin:20px 0 14px;font-size:1rem;">
+        🔗 星盘 × MBTI 交叉解读
+      </h3>
+
+      <div class="sr-card">
+        <h4>⚡ 社交与能量风格</h4>
+        <p>${crossData.energyStyle}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>📖 学习与信息处理</h4>
+        <p>${crossData.learningStyle}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>💖 决策与情感模式</h4>
+        <p>${crossData.decisionStyle}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>📅 生活节奏与自律</h4>
+        <p>${crossData.lifePattern}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>🧩 认知功能 × 星盘洞察</h4>
+        <p>${crossData.cognitiveInsight.replace(/\n/g, '<br>')}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>🎯 教育路径深度建议</h4>
+        <p>${crossData.educationPath.replace(/\n/g, '<br>')}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>🌱 综合成长方向</h4>
+        <p>${crossData.growthDirection.replace(/\n/g, '<br>')}</p>
+      </div>
+
+      <div class="sr-card">
+        <h4>🪐 五大行星速览</h4>
+        <p style="white-space:pre-line">${crossData.planetQuickView}</p>
+      </div>
+    </div>
+    ` : `
+    <div class="sr-card" style="text-align:center;border:1px dashed #1A2332;">
+      <h4>🔗 星盘交叉解读</h4>
+      <p style="color:#64748B;">尚未生成星盘解读。<br><a href="#" onclick="goHome();return false;" style="color:#38BDF8;">先做星盘测试</a>，获得更完整的人格画像。</p>
+    </div>
+    `}
+    `;
+}
+
+// ================================================================
 //  引导加微信
 // ================================================================
 
@@ -508,7 +777,9 @@ function renderReport(report, version) {
   html += `<div class="chart-pill"><div class="pill-label">上升</div><div class="pill-value">${summary.rising ? summary.rising.replace(/[°′].*/, '') : '--'}</div></div>`;
   html += `</div>`;
 
-  (report.sections || []).forEach(section => { html += renderSection(section); });
+  (report.sections || []).forEach(section => {
+    html += renderSection(section);
+  });
   $('report-content').innerHTML = html;
 
   const footer = $('report-footer');
@@ -936,8 +1207,171 @@ window.showTalentConsult = () => {
 
 window.unlockReport = () => {
   track('click_unlock', { page: 'report', label: currentVersion || 'free' });
-  showToast('请联系微信 ' + CONTACT_WECHAT + ' 付费解锁完整报告');
+
+  // 不在微信浏览器内 → 弹微信号
+  if (!isWeChatBrowser()) {
+    showToast('请复制微信号 ' + CONTACT_WECHAT + ' 联系付费解锁');
+    return;
+  }
+
+  // 还没有 OpenID → 跳微信 OAuth
+  if (!wechatOpenId) {
+    const redirectUri = encodeURIComponent(window.location.href.split('?')[0]);
+    const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${WECHAT_APPID}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=pay#wechat_redirect`;
+    // 保存当前页面状态，OAuth 回来后恢复
+    sessionStorage.setItem('oauth_return', 'unlock');
+    window.location.href = oauthUrl;
+    return;
+  }
+
+  // 已有 OpenID → 发起支付
+  startWeChatPay();
 };
+
+/**
+ * 判断是否在微信浏览器内
+ */
+function isWeChatBrowser() {
+  return /MicroMessenger/i.test(navigator.userAgent);
+}
+
+/**
+ * 发起微信支付
+ */
+async function startWeChatPay() {
+  showToast('正在创建支付订单...');
+  try {
+    const resp = await fetch('/api/payment/create-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ openId: wechatOpenId, amount: 9.9 }),
+    });
+    const data = await resp.json();
+
+    if (!data.success) {
+      showToast('支付失败: ' + (data.error || '创建订单失败'));
+      return;
+    }
+
+    // 调起微信 JSAPI 支付
+    const params = data.jsapiParams;
+    if (typeof WeixinJSBridge === 'undefined') {
+      showToast('请在微信内打开');
+      return;
+    }
+
+    WeixinJSBridge.invoke('getBrandWCPayRequest', {
+      appId: params.appId,
+      timeStamp: params.timeStamp,
+      nonceStr: params.nonceStr,
+      package: params.package,
+      signType: params.signType,
+      paySign: params.paySign,
+    }, function (res) {
+      if (res.err_msg === 'get_brand_wcpay_request:ok') {
+        // 支付成功
+        showToast('支付成功！正在解锁报告...');
+        upgradeToPaidReport(data.outTradeNo);
+      } else if (res.err_msg === 'get_brand_wcpay_request:cancel') {
+        showToast('支付已取消');
+      } else {
+        showToast('支付失败: ' + (res.err_msg || '未知错误'));
+      }
+    });
+  } catch (err) {
+    console.error('[支付] 错误:', err);
+    showToast('支付异常，请重试');
+  }
+}
+
+/**
+ * 支付成功后升级为付费报告
+ */
+async function upgradeToPaidReport(outTradeNo) {
+  // 检查支付状态（等待微信回调）
+  let paid = false;
+  for (let i = 0; i < 20; i++) {
+    await sleep(1000);
+    const resp = await fetch(`/api/payment/status?outTradeNo=${outTradeNo}`);
+    const data = await resp.json();
+    if (data.success && data.order.status === 'paid') {
+      paid = true;
+      break;
+    }
+  }
+
+  if (!paid) {
+    showToast('支付已确认，稍后刷新即可看到完整报告');
+    return;
+  }
+
+  // 设为已付费，重新渲染报告
+  currentVersion = 'paid';
+  localStorage.setItem('report_paid_' + (currentReport?.chart?.id || ''), '1');
+
+  // 更新徽标
+  const badge = $('report-badge');
+  if (badge) badge.textContent = '深度版 ¥9.9';
+  badge.className = 'report-badge paid';
+
+  // 隐藏 paywall 区域，显示原有付费内容
+  document.querySelectorAll('.paywall').forEach(el => el.remove());
+  document.querySelectorAll('.paywall-notice, .paywall-price, .paywall-cta, .btn-unlock').forEach(el => el.remove());
+
+  // 在 paywall 位置插入付费板块（用 fallback 生成）
+  if (currentReport?.chart && currentReport?.report) {
+    showToast('报告已解锁！');
+  }
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+/**
+ * 检查 OAuth 回调并获取 OpenID
+ */
+async function handleWeChatOAuth() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+
+  if (!code) {
+    // 检查之前是否 OAuth 回来过
+    const oauthReturn = sessionStorage.getItem('oauth_return');
+    if (oauthReturn) {
+      // 说明在微信内但 OAuth 未完成，刷新清除状态
+      sessionStorage.removeItem('oauth_return');
+    }
+    return;
+  }
+
+  // 有 code → 换取 OpenID
+  try {
+    const resp = await fetch(`/api/wechat/oauth?code=${code}`);
+    const data = await resp.json();
+    if (data.success && data.openId) {
+      wechatOpenId = data.openId;
+      localStorage.setItem('wechat_openid', data.openId);
+
+      // 清除 URL 中的 code 参数
+      const url = new URL(window.location);
+      url.searchParams.delete('code');
+      url.searchParams.delete('state');
+      window.history.replaceState({}, '', url);
+
+      // 如果是从 unlock 跳回来的，继续支付
+      const returnAction = sessionStorage.getItem('oauth_return');
+      if (returnAction === 'unlock') {
+        sessionStorage.removeItem('oauth_return');
+        startWeChatPay();
+      }
+    }
+  } catch (err) {
+    console.error('[OAuth] 获取 OpenID 失败:', err);
+  }
+}
+
+// ========== END 支付相关 ==========
 
 function createTalentModal() {
   const dialog = document.createElement('dialog');
@@ -1717,4 +2151,6 @@ function trackReportSectionViews() {
 document.addEventListener('DOMContentLoaded', () => {
   showPage('home');
   track('app_load', { label: 'v2.0' });
+  // 检查微信 OAuth 回调
+  handleWeChatOAuth();
 });
