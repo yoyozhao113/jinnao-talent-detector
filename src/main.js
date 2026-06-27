@@ -7,6 +7,7 @@ import { drawChartWheel } from './chart-wheel.mjs';
 import track from './tracker.mjs';
 import { MBTI_QUESTIONS, calculateMBTI } from './mbti-data.js';
 import { getMbtiAstroCross } from './mbti-astro.js';
+import { MBTI_EDUCATION } from './mbti-edu.js';
 
 // ========== State ==========
 let currentTestType = null;   // 'strength' | 'star' | 'mbti'
@@ -588,11 +589,14 @@ window.submitMbti = function() {
     }
   } catch (e) { /* 无星盘数据 */ }
 
-  renderMbtiResult(result, crossData);
+  // 教育深度解读
+  const eduData = MBTI_EDUCATION[result.type];
+
+  renderMbtiResult(result, crossData, eduData);
   renderStep3();
 };
 
-function renderMbtiResult(result, crossData) {
+function renderMbtiResult(result, crossData, eduData) {
   const ds = result.dimensionScores;
   $('mbti-result').innerHTML = `
     <div class="mbti-header">
@@ -672,6 +676,42 @@ function renderMbtiResult(result, crossData) {
       <h4>⭐ 同类型名人</h4>
       <p>${result.famous}</p>
     </div>
+
+    ${eduData ? `
+    <div class="mbti-edu-section">
+      <h3 style="text-align:center;color:#4ADE80;margin:20px 0 14px;font-size:1rem;">
+        🎓 教育深度解读
+      </h3>
+      <div class="sr-card">
+        <h4>📖 学习风格</h4>
+        <p>${eduData.style}</p>
+      </div>
+      <div class="sr-card">
+        <h4>🏫 最佳学习环境</h4>
+        <p>${eduData.environment}</p>
+      </div>
+      <div class="sr-card">
+        <h4>📝 高效学习方法</h4>
+        <p>${eduData.method}</p>
+      </div>
+      <div class="sr-card">
+        <h4>📚 优势学科方向</h4>
+        <p>${eduData.subjects}</p>
+      </div>
+      <div class="sr-card">
+        <h4>💡 学习小贴士</h4>
+        <p>${eduData.tips}</p>
+      </div>
+      <div class="sr-card">
+        <h4>🌱 学习突破方向</h4>
+        <p>${eduData.growth}</p>
+      </div>
+      <div class="sr-card">
+        <h4>👩‍🏫 适合的老师类型</h4>
+        <p>${eduData.teacher}</p>
+      </div>
+    </div>
+    ` : ''}
 
     ${crossData ? `
     <div class="mbti-cross-section">

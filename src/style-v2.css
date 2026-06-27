@@ -864,6 +864,11 @@ h1, h2, h3, .home-logo {
 .mbti-cross-section .sr-card { border-color: rgba(56,189,248,0.15); }
 .mbti-cross-section .sr-card h4 { color: #A78BFA; }
 
+/* MBTI 教育解读 */
+.mbti-edu-section { margin-top: 8px; }
+.mbti-edu-section .sr-card { border-color: rgba(74,222,128,0.12); }
+.mbti-edu-section .sr-card h4 { color: #4ADE80; }
+
 /* =============================================
    Strength Result
    ============================================= */
