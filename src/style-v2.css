@@ -1,5 +1,5 @@
 /* ============================================
-   优势星测 v2 — 午夜宇宙设计系统
+   劲脑·天赋探测仪 — 午夜宇宙设计系统
    Font: Noto Serif SC + Noto Sans SC
    Palette: 深蓝底 · 天蓝强调 · 紫渐变
    ============================================ */
@@ -10,7 +10,7 @@
 html { font-size: 16px; -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 
 body {
-  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
   background: #060A1A;
   background-image:
     radial-gradient(ellipse at 20% 20%, rgba(56,189,248,0.05) 0%, transparent 50%),
@@ -23,7 +23,7 @@ body {
 }
 
 h1, h2, h3, .home-logo {
-  font-family: 'Noto Serif SC', 'Noto Sans SC', serif;
+  font-family: 'PingFang SC', 'Microsoft YaHei', serif;
   font-weight: 700;
 }
 
@@ -138,6 +138,7 @@ h1, h2, h3, .home-logo {
 .mbti-icon     { background: rgba(251,146,60,0.1); color: #FB923C; }
 .star-icon     { background: rgba(56,189,248,0.1); color: #38BDF8; }
 .talent-icon   { background: rgba(167,139,250,0.1); color: #A78BFA; }
+.grade-icon    { background: rgba(102,187,106,0.1); color: #66BB6A; }
 
 .home-card-info { flex: 1; position: relative; z-index: 1; }
 .home-card-info h3 { font-size: 1rem; font-weight: 600; color: #E2E8F0; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
@@ -240,39 +241,6 @@ h1, h2, h3, .home-logo {
 
 .hint-text { font-size: 13px; color: #64748B; margin-bottom: 12px; line-height: 1.5; }
 
-/* Version Cards */
-.version-select { margin: 20px 0; }
-.version-label { font-size: 0.85rem; color: #94A3B8; margin-bottom: 10px; }
-.version-cards { display: flex; gap: 8px; }
-.version-card {
-  flex: 1;
-  padding: 14px 8px;
-  border-radius: 12px;
-  border: 2px solid #1A2332;
-  background: #060A1A;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.version-card:hover { border-color: rgba(56,189,248,0.3); }
-.version-card.active { border-color: #38BDF8; background: rgba(56,189,248,0.06); }
-.version-card input { display: none; }
-
-.version-badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  padding: 2px 10px;
-  border-radius: 20px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.version-badge.free     { background: rgba(56,189,248,0.15); color: #38BDF8; }
-.version-badge.standard { background: rgba(251,191,36,0.15);  color: #FBBF24; }
-.version-badge.premium  { background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(249,115,22,0.2)); color: #FBBF24; }
-
-.version-name { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; color: #E2E8F0; }
-.version-features { display: block; font-size: 0.75rem; color: #475569; }
-
 /* Primary Button */
 .btn-primary {
   width: 100%;
@@ -363,7 +331,6 @@ h1, h2, h3, .home-logo {
 }
 .report-badge.free     { background: rgba(56,189,248,0.15); color: #38BDF8; }
 .report-badge.standard { background: rgba(251,191,36,0.15); color: #FBBF24; }
-.report-badge.premium  { background: linear-gradient(135deg, rgba(251,191,36,0.2), rgba(249,115,22,0.2)); color: #FBBF24; }
 
 .report-title { font-size: 1.3rem; font-weight: 700; color: #E2E8F0; }
 .report-summary { font-size: 0.85rem; color: #64748B; margin-top: 6px; }
@@ -825,6 +792,45 @@ h1, h2, h3, .home-logo {
 .mbti-opt-text { font-size: 0.9rem; color: #CBD5E1; line-height: 1.5; }
 .mbti-opt.selected .mbti-opt-text { color: #E2E8F0; }
 
+/* VARK 测试 */
+.vark-options { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.vark-opt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer; transition: all 0.2s;
+}
+.vark-opt:hover { background: rgba(255,255,255,0.05); }
+.vark-opt.selected { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+.vark-opt-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.7rem; font-weight: 600; color: #060A1A; flex-shrink: 0;
+}
+.vark-opt-text { font-size: 0.85rem; color: #CBD5E1; line-height: 1.4; }
+.vark-opt.selected .vark-opt-text { color: #E2E8F0; }
+
+/* 学业效能感测试 */
+.efficacy-options { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.efficacy-opt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer; transition: all 0.2s;
+}
+.efficacy-opt:hover { background: rgba(255,255,255,0.05); }
+.efficacy-opt.selected { background: rgba(14,165,233,0.08); border-color: #0EA5E9; }
+.efficacy-opt-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 12px;
+  background: rgba(255,255,255,0.06); color: #94A3B8;
+  font-size: 0.75rem; font-weight: 600; flex-shrink: 0;
+}
+.efficacy-opt.selected .efficacy-opt-num { background: #0EA5E9; color: #060A1A; }
+.efficacy-opt-text { font-size: 0.85rem; color: #CBD5E1; }
+.efficacy-opt.selected .efficacy-opt-text { color: #E2E8F0; }
+
+/* 通用：维度条（复用 MBTI 的 mbti-dims 系列） */
+
 /* MBTI 结果 */
 .mbti-result { max-width: 420px; margin: 0 auto; padding: 8px 0 20px; }
 .mbti-header { text-align: center; padding: 12px 0 18px; }
@@ -890,6 +896,348 @@ h1, h2, h3, .home-logo {
 .mbti-edu-section .sr-card h4 { color: #4ADE80; }
 
 /* =============================================
+   Share Center — 用户分享/粉丝绑定
+   ============================================= */
+.share-center {
+  margin-top: 20px;
+  padding: 18px;
+  background: #0F172A;
+  border: 1px solid #1A2332;
+  border-radius: 14px;
+}
+.share-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.share-qr-placeholder { font-size: 2rem; margin-bottom: 6px; }
+.share-header h4 {
+  color: #E2E8F0;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+.share-header p {
+  color: #64748B;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.share-code-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #060A1A;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.share-code-label {
+  color: #64748B;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+.share-code-value {
+  color: #38BDF8;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  flex: 1;
+  font-family: monospace;
+}
+.share-copy-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #38BDF8;
+  color: #38BDF8;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: inherit;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.share-copy-btn:hover {
+  background: rgba(56,189,248,0.1);
+}
+.share-stats {
+  display: flex;
+  gap: 10px;
+}
+.share-stat {
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  background: #060A1A;
+  border-radius: 10px;
+}
+.share-stat-num {
+  display: block;
+  color: #E2E8F0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.share-stat-label {
+  display: block;
+  color: #64748B;
+  font-size: 0.7rem;
+  margin-top: 2px;
+}
+
+/* =============================================
+   Profile Page — 用户中心
+   ============================================= */
+.profile-page { padding: 0 0 20px; }
+
+.profile-header {
+  text-align: center;
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid #1A2332;
+}
+.profile-avatar { font-size: 2.6rem; margin-bottom: 6px; }
+.profile-name { font-size: 1.15rem; font-weight: 600; color: #E2E8F0; margin-bottom: 2px; }
+.profile-uid { font-size: 0.82rem; color: #475569; font-family: monospace; letter-spacing: 2px; margin-bottom: 4px; }
+.profile-badge { font-size: 0.8rem; color: #64748B; }
+
+/* 分享码区域 */
+.profile-share-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+  padding: 10px 14px;
+  background: #0F172A;
+  border: 1px solid #1A2332;
+  border-radius: 10px;
+}
+.profile-share-label { font-size: 0.78rem; color: #64748B; }
+.profile-share-code { flex: 1; font-size: 0.85rem; font-weight: 600; color: #38BDF8; letter-spacing: 1px; font-family: monospace; }
+.profile-share-btn {
+  padding: 4px 12px; border-radius: 6px; border: 1px solid #38BDF8;
+  color: #38BDF8; background: transparent; cursor: pointer; font-size: 0.75rem; font-family: inherit;
+}
+.profile-share-stats {
+  display: flex; gap: 16px; margin: -4px 16px 12px; padding: 8px 14px;
+  font-size: 0.75rem; color: #64748B;
+}
+
+/* 菜单主体 */
+.profile-body { padding: 8px 16px; }
+
+.profile-menu-section {
+  margin-bottom: 14px;
+  background: #0D1117;
+  border: 1px solid #1A2332;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.profile-menu-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94A3B8;
+}
+.profile-menu-count {
+  font-size: 0.75rem;
+  color: #475569;
+  background: #1A2332;
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+
+/* 测评列表 */
+.profile-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.8;
+}
+.profile-report-list { display: flex; flex-direction: column; }
+.profile-report-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+.profile-report-item:hover { background: rgba(255,255,255,0.02); }
+.profile-report-item:active { background: rgba(255,255,255,0.04); }
+.profile-report-icon { font-size: 1.3rem; flex-shrink: 0; }
+.profile-report-info { flex: 1; min-width: 0; }
+.profile-report-name { font-size: 0.85rem; color: #E2E8F0; display: flex; align-items: center; gap: 6px; }
+.profile-report-type { font-size: 0.7rem; color: #64748B; }
+.profile-report-meta { font-size: 0.72rem; color: #475569; margin-top: 2px; }
+.profile-report-badge {
+  font-size: 0.65rem; padding: 2px 8px; border-radius: 8px; flex-shrink: 0;
+}
+.profile-report-badge.free { background: rgba(100,116,139,0.15); color: #64748B; }
+.profile-report-badge.paid { background: rgba(56,189,248,0.12); color: #38BDF8; }
+.profile-more {
+  text-align: center; padding: 10px; font-size: 0.75rem; color: #475569;
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+
+/* 订单列表 */
+.profile-order-list { display: flex; flex-direction: column; }
+.profile-order-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+.profile-order-info { flex: 1; min-width: 0; }
+.profile-order-name { font-size: 0.82rem; color: #CBD5E1; }
+.profile-order-meta { font-size: 0.7rem; color: #475569; margin-top: 2px; }
+.profile-order-amount { font-size: 0.85rem; font-weight: 600; color: #E2E8F0; }
+
+/* 服务网格 */
+.profile-service-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 6px;
+  padding: 10px 12px 14px;
+}
+.profile-service-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: center;
+}
+.profile-service-item:hover { background: rgba(255,255,255,0.03); }
+.profile-service-item:active { background: rgba(255,255,255,0.06); }
+.profile-service-icon { font-size: 1.3rem; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+.profile-service-icon.dist { background: rgba(245,158,11,0.12); }
+.profile-service-icon.share { background: rgba(56,189,248,0.12); }
+.profile-service-icon.test { background: rgba(129,140,248,0.12); }
+.profile-service-icon.vip { background: rgba(251,191,36,0.12); }
+.profile-service-item span { font-size: 0.72rem; color: #94A3B8; }
+
+/* 菜单项 */
+.profile-menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: #0D1117;
+  border: 1px solid #1A2332;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: #CBD5E1;
+  transition: background 0.15s;
+}
+.profile-menu-item:hover { background: #0F172A; }
+.profile-menu-item:active { background: #141A40; }
+.profile-menu-arrow { color: #475569; font-size: 1.1rem; }
+
+/* OA 公众号宣传位 */
+.profile-oa-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, rgba(56,189,248,0.06), rgba(129,140,248,0.04));
+  border: 1px solid rgba(56,189,248,0.15);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.profile-oa-banner:hover { border-color: rgba(56,189,248,0.3); background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(129,140,248,0.08)); }
+.profile-oa-banner:active { transform: scale(0.98); }
+.profile-oa-icon { font-size: 1.6rem; flex-shrink: 0; }
+.profile-oa-content { flex: 1; }
+.profile-oa-title { font-size: 0.88rem; font-weight: 600; color: #E2E8F0; margin-bottom: 2px; }
+.profile-oa-desc { font-size: 0.75rem; color: #64748B; }
+.profile-oa-arrow { color: #475569; font-size: 1.1rem; }
+
+/* 退出登录 */
+.profile-logout {
+  width: 100%;
+  padding: 12px 0;
+  background: transparent;
+  border: 1px solid rgba(248,113,113,0.2);
+  border-radius: 10px;
+  color: #F87171;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  margin-bottom: 30px;
+}
+.profile-logout:hover { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.3); }
+.profile-logout:active { transform: scale(0.98); }
+
+/* 通用弹窗 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: modalFadeIn 0.2s ease;
+}
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.modal-box {
+  width: 88%;
+  max-width: 360px;
+  background: #0D1117;
+  border: 1px solid #1A2332;
+  border-radius: 14px;
+  overflow: hidden;
+  animation: modalIn 0.2s ease;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #E2E8F0;
+  border-bottom: 1px solid #1A2332;
+}
+.modal-close {
+  background: none; border: none; color: #475569;
+  font-size: 1.1rem; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+  font-family: inherit;
+}
+.modal-close:hover { background: rgba(255,255,255,0.05); color: #E2E8F0; }
+.modal-body { padding: 16px; }
+.modal-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #1A2332;
+  background: #060A1A;
+  color: #E2E8F0;
+  font-size: 0.85rem;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+.modal-textarea:focus { border-color: #38BDF8; }
+.modal-textarea::placeholder { color: #334155; }
+
+/* =============================================
    Strength Result
    ============================================= */
 .strength-result { max-width: 420px; margin: 0 auto; padding: 8px 0 20px; }
@@ -952,41 +1300,7 @@ h1, h2, h3, .home-logo {
 /* =============================================
    Paywall
    ============================================= */
-.paywall-notice { text-align: center; color: #64748B; font-size: 0.85rem; margin-bottom: 8px; }
-.paywall-price {
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #FBBF24, #F97316);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 8px;
-}
-.paywall-cta { text-align: center; color: #E2E8F0; font-size: 0.95rem; margin-bottom: 16px; }
 
-.paywall-item {
-  background: #0D1117;
-  border: 1px solid #1A2332;
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  opacity: 0.7;
-}
-.paywall-item-title { font-size: 0.95rem; color: #E2E8F0; margin-bottom: 4px; }
-.paywall-item-hint { font-size: 0.82rem; color: #475569; }
-
-/* =============================================
-   Lead Box
-   ============================================= */
-.lead-box {
-  background: #0D1117;
-  border: 1px solid #1A2332;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-top: 20px;
-  text-align: center;
-}
 .lead-box p { font-size: 0.8rem; color: #64748B; margin-bottom: 8px; }
 .lead-wechat {
   font-size: 1.1rem;
@@ -1305,7 +1619,6 @@ h1, h2, h3, .home-logo {
    Responsive
    ============================================= */
 @media (max-width: 380px) {
-  .version-cards { flex-direction: column; gap: 6px; }
   .chart-summary { flex-wrap: wrap; }
   .home-logo { font-size: 1.8rem; }
 }
@@ -1584,3 +1897,186 @@ h1, h2, h3, .home-logo {
 
 /* 管理员分销 Tab 按钮 */
 .admin-tab.dist { color: #f59e0b; }
+
+/* ========== 成绩薄弱点检测 ========== */
+.grade-hero {
+  text-align: center;
+  padding: 40px 20px 20px;
+}
+.grade-hero-icon { font-size: 3rem; margin-bottom: 12px; }
+.grade-hero-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #e8eaff;
+  margin: 0 0 8px;
+}
+.grade-hero-subtitle {
+  font-size: 0.9rem;
+  color: #8b8fbd;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.grade-benefits {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.grade-benefit-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(30,41,84,0.5);
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: #c8c6e0;
+  font-size: 0.9rem;
+}
+.gb-icon { font-size: 1.3rem; }
+
+.grade-cta-area {
+  padding: 20px;
+  text-align: center;
+}
+.grade-start-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 1.1rem;
+  border-radius: 12px;
+}
+.grade-hint {
+  color: #575a85;
+  font-size: 0.78rem;
+  margin: 12px 0 0;
+}
+
+/* 表单页 */
+.grade-form-container {
+  padding: 16px;
+}
+.grade-form-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+.grade-form-header h3 {
+  color: #e8eaff;
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+.grade-form-header p {
+  color: #575a85;
+  font-size: 0.8rem;
+  margin: 0;
+}
+.grade-form { margin-bottom: 16px; }
+.grade-form .form-group { margin-bottom: 14px; }
+.grade-form label {
+  display: block;
+  color: #c8c6e0;
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.required { color: #ef5350; }
+.form-helper { color: #575a85; font-size: 0.78rem; margin: 2px 0 0; }
+.grade-form select,
+.grade-form input[type="text"],
+.grade-form input[type="number"] {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #1e2954;
+  background: #0d1029;
+  color: #e8eaff;
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+}
+.grade-form select:focus,
+.grade-form input:focus { border-color: #f59e0b; }
+.grade-form select option { background: #0d1029; color: #e8eaff; }
+.grade-subject-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.grade-subject-row select,
+.grade-subject-row input { padding: 10px; border-radius: 8px; }
+.grade-remove-subject {
+  background: rgba(239,83,80,0.15);
+  border: none;
+  color: #ef5350;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.grade-add-subject {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+  border: 1px dashed #1e2954;
+  background: transparent;
+  color: #8b8fbd;
+  cursor: pointer;
+}
+.grade-add-subject:hover { border-color: #f59e0b; color: #f59e0b; }
+.grade-form-actions { margin-top: 20px; }
+.grade-submit-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 1.05rem;
+  border-radius: 12px;
+}
+.grade-form-note {
+  text-align: center;
+  color: #575a85;
+  font-size: 0.72rem;
+  margin: 12px 0 0;
+}
+.grade-error {
+  background: rgba(239,83,80,0.1);
+  border: 1px solid rgba(239,83,80,0.3);
+  color: #ef5350;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-top: 12px;
+}
+
+/* 提交成功页 */
+.grade-done {
+  text-align: center;
+  padding: 60px 20px;
+}
+.grade-done-icon { font-size: 3.5rem; margin-bottom: 16px; }
+.grade-done-title {
+  font-size: 1.4rem;
+  color: #66bb6a;
+  margin: 0 0 12px;
+}
+.grade-done-desc {
+  color: #8b8fbd;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
+.grade-done-detail {
+  background: rgba(30,41,84,0.5);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: left;
+}
+.grade-done-detail p {
+  color: #c8c6e0;
+  font-size: 0.88rem;
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+.grade-done-detail p:last-child { margin-bottom: 0; }

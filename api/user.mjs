@@ -20,6 +20,7 @@ const ROOT = join(__dirname, '..');
 const USERS_FILE = join(ROOT, 'data', 'users.json');
 const REPORTS_FILE = join(ROOT, 'data', 'user_reports.json');
 const EVENTS_FILE = join(ROOT, 'data', 'user_events.json');
+const UID_COUNTER_FILE = join(ROOT, 'data', 'uid_counter.json');
 
 function ensureDataDir() {
   const d = join(ROOT, 'data');
@@ -41,6 +42,32 @@ function genRptId() {
   return 'rpt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+// ========== 8位显示ID ==========
+
+const UID_START = 11342801;
+
+function isValidDisplayId(num) {
+  return !/0/.test(String(num));
+}
+
+function getNextDisplayId() {
+  ensureDataDir();
+  let counter;
+  try {
+    counter = JSON.parse(fs.readFileSync(UID_COUNTER_FILE, 'utf-8'));
+  } catch {
+    counter = { next: UID_START };
+  }
+  let uid = counter.next;
+  // 跳过所有包含数字0的ID，尾号也避免0
+  while (!isValidDisplayId(uid)) {
+    uid++;
+  }
+  counter.next = uid + 1;
+  fs.writeFileSync(UID_COUNTER_FILE, JSON.stringify(counter), 'utf-8');
+  return uid;
+}
+
 // ========== 用户管理 ==========
 
 /**
@@ -54,6 +81,7 @@ export function findOrCreateUser(openId, nickName) {
   if (!user) {
     user = {
       userId: genId(),
+      displayId: getNextDisplayId(),
       openId,
       nickName: nickName || '微信用户',
       traits: {},      // 用户画像（可扩展）
@@ -64,9 +92,12 @@ export function findOrCreateUser(openId, nickName) {
   } else {
     user.lastLoginAt = new Date().toISOString();
     if (nickName) user.nickName = nickName;
+    if (!user.displayId) {
+      user.displayId = getNextDisplayId();
+    }
   }
   saveJSON(USERS_FILE, users);
-  return { userId: user.userId, openId: user.openId, nickName: user.nickName, traits: user.traits, createdAt: user.createdAt };
+  return { userId: user.userId, displayId: user.displayId, openId: user.openId, nickName: user.nickName, traits: user.traits, createdAt: user.createdAt };
 }
 
 /**
@@ -75,7 +106,12 @@ export function findOrCreateUser(openId, nickName) {
 export function getUserByOpenId(openId) {
   const users = loadJSON(USERS_FILE);
   const u = users.find(u => u.openId === openId);
-  return u ? { userId: u.userId, openId: u.openId, nickName: u.nickName, traits: u.traits, createdAt: u.createdAt } : null;
+  if (!u) return null;
+  if (!u.displayId) {
+    u.displayId = getNextDisplayId();
+    saveJSON(USERS_FILE, users);
+  }
+  return { userId: u.userId, displayId: u.displayId, openId: u.openId, nickName: u.nickName, traits: u.traits, createdAt: u.createdAt };
 }
 
 /**
@@ -180,6 +216,116 @@ export function deleteReport(reportId, openId) {
   reports = reports.filter(r => !(r.id === reportId && r.openId === openId));
   if (reports.length !== before) saveJSON(REPORTS_FILE, reports);
   return reports.length !== before;
+}
+
+// ========== 粉丝绑定与分享系统 ==========
+
+const FANS_FILE = join(ROOT, 'data', 'fans.json');
+
+/**
+ * 生成/获取用户的分享码
+ */
+export function generateShareCode(openId) {
+  const users = loadJSON(USERS_FILE);
+  const u = users.find(x => x.openId === openId);
+  if (!u) return null;
+  if (!u.shareCode) {
+    u.shareCode = 'S' + Math.random().toString(36).slice(2, 7).toUpperCase();
+    saveJSON(USERS_FILE, users);
+  }
+  return { shareCode: u.shareCode, shareLink: `https://xingsujiaclub.cn/?share=${u.shareCode}` };
+}
+
+/**
+ * 通过分享码查找用户
+ */
+export function getUserByShareCode(shareCode) {
+  const users = loadJSON(USERS_FILE);
+  const u = users.find(x => x.shareCode === shareCode);
+  if (!u) return null;
+  return { userId: u.userId, openId: u.openId, nickName: u.nickName, createdAt: u.createdAt };
+}
+
+/**
+ * 绑定粉丝
+ * hostOpenId: 被绑定（分享者）
+ * fanOpenId:  粉丝的 openId（或设备ID）
+ * fanName:    粉丝昵称
+ */
+export function bindFan(hostOpenId, fanOpenId, fanName) {
+  ensureDataDir();
+  const fans = loadJSON(FANS_FILE);
+
+  // 已经绑定过同一个粉丝 → 更新活跃时间
+  const existing = fans.find(f => f.hostOpenId === hostOpenId && f.fanOpenId === fanOpenId);
+  if (existing) {
+    existing.lastActiveAt = new Date().toISOString();
+    existing.actionCount = (existing.actionCount || 0) + 1;
+    saveJSON(FANS_FILE, fans);
+    return existing;
+  }
+
+  const fan = {
+    id: 'fan_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    hostOpenId,
+    fanOpenId,
+    fanName: fanName || '匿名粉丝',
+    boundAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    actionCount: 0,
+    paid: false,
+  };
+  fans.push(fan);
+  saveJSON(FANS_FILE, fans);
+
+  // 更新分享者的粉丝数画像
+  const fanCount = fans.filter(f => f.hostOpenId === hostOpenId).length;
+  updateUserTraits(hostOpenId, { fanCount });
+
+  return fan;
+}
+
+/**
+ * 获取用户粉丝列表
+ */
+export function getFans(openId) {
+  return loadJSON(FANS_FILE)
+    .filter(f => f.hostOpenId === openId)
+    .sort((a, b) => new Date(b.boundAt) - new Date(a.boundAt));
+}
+
+/**
+ * 获取粉丝统计
+ */
+export function getFanStats(openId) {
+  const fans = loadJSON(FANS_FILE).filter(f => f.hostOpenId === openId);
+  const totalFans = fans.length;
+  const paidFans = fans.filter(f => f.paid).length;
+  const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  const newThisWeek = fans.filter(f => new Date(f.boundAt).getTime() > weekAgo).length;
+  return { totalFans, paidFans, newThisWeek };
+}
+
+/**
+ * 记录粉丝行为
+ */
+export function recordFanAction(shareCode, action, meta) {
+  const user = getUserByShareCode(shareCode);
+  if (!user) return null;
+  const fans = loadJSON(FANS_FILE);
+  const fanOpenId = meta?.fanOpenId || '';
+  if (!fanOpenId) return null;
+
+  const existing = fans.find(f => f.hostOpenId === user.openId && f.fanOpenId === fanOpenId);
+  if (existing) {
+    existing.actionCount = (existing.actionCount || 0) + 1;
+    existing.lastActiveAt = new Date().toISOString();
+    if (action === 'payment') existing.paid = true;
+    saveJSON(FANS_FILE, fans);
+  }
+
+  trackUserEvent(user.openId, 'fan_' + action, { fanOpenId, ...meta });
+  return existing;
 }
 
 // ========== 用户画像统计分析 ==========

@@ -4,10 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
-  <title>优势星测</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet" />
+  <title>劲脑·天赋探测仪</title>
   <link rel="stylesheet" href="/src/style-v2.css" />
 </head>
 <body>
@@ -22,23 +19,10 @@
           <span class="star s3"></span><span class="star s4"></span>
           <span class="star s5"></span><span class="star s6"></span>
         </div>
-        <h1 class="home-logo">✦ 优势星测</h1>
+        <h1 class="home-logo">✦ 劲脑·天赋探测仪</h1>
         <p class="home-subtitle">发现你的天生优势 · 解锁星辰密码</p>
       </div>
       <div class="home-cards">
-        <!-- 性格优势 -->
-        <div class="home-card" onclick="goToStep2('strength')">
-          <div class="home-card-icon strength-icon">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 5 7 9 5-4 7-6 7-9a7 7 0 0 0-7-7z"/><circle cx="12" cy="9" r="2"/></svg>
-          </div>
-          <div class="home-card-info">
-            <h3>性格优势测试 <span class="tag-hot">HOT</span></h3>
-            <p>15道题，AI 深度分析你的核心性格优势</p>
-          </div>
-          <div class="home-card-arrow">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
-          </div>
-        </div>
         <!-- MBTI 人格测试 -->
         <div class="home-card" onclick="goToStep2('mbti')">
           <div class="home-card-icon mbti-icon">
@@ -73,6 +57,45 @@
           <div class="home-card-info">
             <h3>五者天赋测评 <span class="tag-new">NEW</span></h3>
             <p>后天大脑优势训练 · 五行天赋培养方案</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <!-- 成绩薄弱点检测 -->
+        <div class="home-card" onclick="goGradeHome()">
+          <div class="home-card-icon grade-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>成绩薄弱点检测 <span class="tag-hot">免费</span></h3>
+            <p>AI分析各科薄弱知识点，获取脑科学训练建议</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <!-- VARK 学习风格 -->
+        <div class="home-card" onclick="goToStep2('vark')">
+          <div class="home-card-icon" style="background:rgba(124,58,237,0.15);border-color:rgba(124,58,237,0.3);">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>VARK 学习风格 <span class="tag-hot">NEW</span></h3>
+            <p>16题测出你的学习偏好：视觉/听觉/读写/动觉</p>
+          </div>
+          <div class="home-card-arrow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </div>
+        <!-- 学业效能感 -->
+        <div class="home-card" onclick="goToStep2('efficacy')">
+          <div class="home-card-icon" style="background:rgba(14,165,233,0.15);border-color:rgba(14,165,233,0.3);">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="home-card-info">
+            <h3>学业效能感测评 <span class="tag-hot">NEW</span></h3>
+            <p>22题评估你的学习能力和行为自信心</p>
           </div>
           <div class="home-card-arrow">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
@@ -171,12 +194,22 @@
         </div>
       </div>
 
-      <div id="strength-report-area" class="hidden">
-        <div class="strength-result" id="strength-result"><!-- JS渲染 --></div>
+<div id="mbti-report-area" class="hidden">
+        <div class="mbti-result" id="mbti-result"><!-- JS渲染 --></div>
+        <div class="report-actions">
+          <button class="btn-back" onclick="window.goHome()">🏠 返回首页</button>
+        </div>
       </div>
 
-      <div id="mbti-report-area" class="hidden">
-        <div class="mbti-result" id="mbti-result"><!-- JS渲染 --></div>
+<div id="vark-report-area" class="hidden">
+        <div class="mbti-result" id="vark-result"><!-- JS渲染 --></div>
+        <div class="report-actions">
+          <button class="btn-back" onclick="window.goHome()">🏠 返回首页</button>
+        </div>
+      </div>
+
+<div id="efficacy-report-area" class="hidden">
+        <div class="mbti-result" id="efficacy-result"><!-- JS渲染 --></div>
         <div class="report-actions">
           <button class="btn-back" onclick="window.goHome()">🏠 返回首页</button>
         </div>
@@ -190,6 +223,140 @@
         <span class="step-indicator">推广中心</span>
       </div>
       <div id="distributor-content"><!-- JS 动态渲染 --></div>
+    </section>
+
+    <!-- ====== 成绩薄弱点检测 ====== -->
+    <!-- 介绍页 -->
+    <section id="page-grade-home" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="goHome()">← 返回</button>
+        <span class="step-indicator">成绩检测</span>
+      </div>
+      <div class="grade-hero">
+        <div class="grade-hero-icon">📊</div>
+        <h2 class="grade-hero-title">成绩薄弱点检测</h2>
+        <p class="grade-hero-subtitle">AI 智能分析各科薄弱知识点<br/>获取专属脑科学训练建议</p>
+      </div>
+      <div class="grade-benefits">
+        <div class="grade-benefit-item">
+          <span class="gb-icon">🔍</span>
+          <span>精准定位薄弱知识点</span>
+        </div>
+        <div class="grade-benefit-item">
+          <span class="gb-icon">🧠</span>
+          <span>脑科学学习方法建议</span>
+        </div>
+        <div class="grade-benefit-item">
+          <span class="gb-icon">📋</span>
+          <span>个性化提升方案</span>
+        </div>
+        <div class="grade-benefit-item">
+          <span class="gb-icon">💬</span>
+          <span>教育顾问1对1跟进</span>
+        </div>
+      </div>
+      <div class="grade-cta-area">
+        <button class="btn-primary grade-start-btn" onclick="goGradeForm()">开始检测</button>
+        <p class="grade-hint">仅需1分钟，帮助孩子找到提分方向</p>
+      </div>
+    </section>
+
+    <!-- 表单页 -->
+    <section id="page-grade-form" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="goGradeHome()">← 返回</button>
+        <span class="step-indicator">填写信息</span>
+      </div>
+      <div class="grade-form-container">
+        <div class="grade-form-header">
+          <h3>填写学生信息</h3>
+          <p>我们将严格保密您的信息，仅用于学情分析</p>
+        </div>
+        <form id="grade-form" class="grade-form" onsubmit="submitGradeAssessment(event)">
+          <div class="form-group">
+            <label>家长微信 <span class="required">*</span></label>
+            <input type="text" id="g-wechat" placeholder="输入您的微信号，方便顾问联系您" required />
+          </div>
+          <div class="form-group">
+            <label>学生姓名</label>
+            <input type="text" id="g-name" placeholder="如：小宝" maxlength="10" />
+          </div>
+          <div class="form-group">
+            <label>省份 <span class="required">*</span></label>
+            <input type="text" id="g-province" placeholder="如：广东省" required />
+          </div>
+          <div class="form-group">
+            <label>年级 <span class="required">*</span></label>
+            <select id="g-grade" required>
+              <option value="">请选择年级</option>
+              <optgroup label="小学">
+                <option value="小学一年级">小学一年级</option>
+                <option value="小学二年级">小学二年级</option>
+                <option value="小学三年级">小学三年级</option>
+                <option value="小学四年级">小学四年级</option>
+                <option value="小学五年级">小学五年级</option>
+                <option value="小学六年级">小学六年级</option>
+              </optgroup>
+              <optgroup label="初中">
+                <option value="初一">初一</option>
+                <option value="初二">初二</option>
+                <option value="初三">初三</option>
+              </optgroup>
+              <optgroup label="高中">
+                <option value="高一">高一</option>
+                <option value="高二">高二</option>
+                <option value="高三">高三</option>
+              </optgroup>
+            </select>
+          </div>
+          <div id="grade-subjects-container">
+            <div class="form-group">
+              <label>科目与成绩</label>
+              <p class="form-helper">添加至少一个科目及最近考试成绩</p>
+            </div>
+            <div class="grade-subject-row">
+              <select class="g-subject" style="flex:1;">
+                <option value="语文">语文</option>
+                <option value="数学">数学</option>
+                <option value="英语">英语</option>
+                <option value="物理">物理</option>
+                <option value="化学">化学</option>
+                <option value="生物">生物</option>
+                <option value="历史">历史</option>
+                <option value="地理">地理</option>
+                <option value="政治">政治</option>
+              </select>
+              <input type="number" class="g-score" placeholder="成绩" min="0" max="100" style="width:80px;" />
+              <button type="button" class="grade-remove-subject" onclick="this.parentElement.remove()">✕</button>
+            </div>
+          </div>
+          <button type="button" class="btn-secondary grade-add-subject" onclick="addGradeSubject()">+ 添加科目</button>
+          <div class="grade-form-actions">
+            <button type="submit" class="btn-primary grade-submit-btn" id="grade-submit-btn">提交分析</button>
+          </div>
+          <p class="grade-form-note">提交即表示您同意我们与您联系并提供教育咨询服务</p>
+        </form>
+        <div id="grade-error" class="grade-error hidden"></div>
+      </div>
+    </section>
+
+    <!-- 提交成功页 -->
+    <section id="page-grade-done" class="page">
+      <div class="page-topbar">
+        <button class="btn-back" onclick="goHome()">← 首页</button>
+        <span class="step-indicator">提交成功</span>
+      </div>
+      <div class="grade-done">
+        <div class="grade-done-icon">✅</div>
+        <h3 class="grade-done-title">提交成功！</h3>
+        <p class="grade-done-desc">感谢您的信任！我们的教育顾问会尽快添加您的微信，<br/>为孩子进行专业的学情分析和提升规划。</p>
+        <div class="grade-done-detail">
+          <p>📌 顾问会在 <strong>24小时内</strong> 联系您</p>
+          <p>💬 请保持微信好友验证开启</p>
+          <p>🎯 我们将为孩子定制专属提升方案</p>
+        </div>
+        <button class="btn-primary" onclick="goHome()" style="margin-top:24px;">返回首页</button>
+      </div>
     </section>
 
   </div>

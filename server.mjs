@@ -1,5 +1,5 @@
 /**
- * 优势星测 API 服务（端口 3001）
+ * 劲脑·天赋探测仪 API 服务（端口 3001）
  */
 import { createRequire } from 'module';
 import fs from 'fs';
@@ -11,8 +11,10 @@ const http = require('http');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMMENTS_FILE = join(__dirname, 'comments.json');
 const TRACKING_FILE = join(__dirname, 'tracking.json');
+const LEADS_FILE = join(__dirname, 'leads.json');
 const ADMIN_KEY = 'momadmin888'; // 管理员密钥，简单够用就行
 const REPORT_COUNTER_FILE = join(__dirname, 'report_counter.json');
+const USER_RECORDS_FILE = join(__dirname, 'user_records.json');
 
 function getReportCount() {
   try { return JSON.parse(fs.readFileSync(REPORT_COUNTER_FILE, 'utf-8')).count || 0; }
@@ -80,41 +82,41 @@ http.createServer(async (req, res) => {
           const distributorRef = d.distributor;
           const refDist = dist.getDistributorByCode(distributorRef);
           if (refDist) {
-            const orderType = d.version === 'paid' ? 'premium' : 'free';
-            const orderAmount = d.version === 'paid' ? 9.9 : 0;
             dist.createReferralOrder({
               refUid: refDist.uid,
               customerUid: '',
               customerName: d.name || '匿名用户',
-              orderType,
-              amount: orderAmount,
+              orderType: 'free',
+              amount: 0,
             });
-            console.log(`[分销] 推广员 ${refDist.code} 获得新订单: ${orderType}`);
+            console.log(`[分销] 推广员 ${refDist.code} 获得新订单: free`);
           }
-        }
-
-        // === 前100份免费策略 ===
-        const totalCount = incrementReportCount();
-        const isFreePromo = totalCount <= 100;
-        const actualVersion = isFreePromo ? 'paid' : (d.version || 'free');
-        if (isFreePromo) {
-          console.log(`[免费活动] 第${totalCount}份报告，免费赠送完整版`);
-        } else {
-          console.log(`[免费活动] 已超过100份（第${totalCount}份），恢复正常付费`);
         }
 
         // 尝试用 DeepSeek + 知识库生成报告
         let report;
         try {
-          report = await callDeepSeekChart(chart, d.name || '宝贝', actualVersion, d.budget, d.grade);
+          report = await callDeepSeekChart(chart, d.name || '宝贝', 'free', d.budget, d.grade);
         } catch (aiErr) {
           console.warn('DeepSeek 报告生成失败，使用本地回退:', aiErr.message);
-          report = getChartFallback(chart, d.name || '宝贝', actualVersion, d.budget, d.grade);
+          report = getChartFallback(chart, d.name || '宝贝', 'free', d.budget, d.grade);
         }
+
+        // 保存用户测试记录
+        saveUserRecord({
+          type: 'star',
+          name: d.name || '匿名用户',
+          birthDate: d.birthDate,
+          city: d.city || '',
+          budget: d.budget || '',
+          grade: d.grade || '',
+          distributor: d.distributor || '',
+          createdAt: new Date().toISOString()
+        });
 
         console.log('[API] 响应发送成功');
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, chart: chart.basic, report, version: actualVersion, promoRemaining: isFreePromo ? (100 - totalCount) : 0 }));
+        res.end(JSON.stringify({ success: true, chart: chart.basic, report, version: 'free' }));
       } catch (err) {
         console.error('[API] 错误:', err.message, err.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -124,21 +126,34 @@ http.createServer(async (req, res) => {
     return;
   }
 
-  // === AI 报告生成（性格测试用） ===
-  if (req.url === '/api/report' && req.method === 'POST') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', async () => {
-      try {
-        const { answers, name } = JSON.parse(body);
-        const result = await callDeepSeek(answers, name);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, data: result }));
-      } catch (err) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, data: getStrengthFallback() }));
-      }
-    });
+  // === 用户记录 API ===
+  if (req.url === '/api/user-records' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      saveUserRecord({ ...body, createdAt: new Date().toISOString() });
+      sendJSON(res, 200, { success: true });
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // === 留资 API ===
+  if (req.url === '/api/lead' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { wechat, phone, name, type } = body;
+      if (!wechat) { sendJSON(res, 400, { success: false, error: '微信号不能为空' }); return; }
+      saveLeadRecord({ wechat, phone: phone || '', name: name || '', type: type || 'star', createdAt: new Date().toISOString() });
+      console.log('[留资] 新线索 微信号:', wechat, '类型:', type || 'star');
+      sendJSON(res, 200, { success: true });
+    }).catch(() => sendJSON(res, 200, { success: false }));
+    return;
+  }
+
+  if (req.url.startsWith('/api/user-records/list') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false }); return; }
+    const records = loadUserRecords();
+    const type = params.type || '';
+    const filtered = type ? records.filter(r => r.type === type) : records;
+    sendJSON(res, 200, { success: true, records: filtered.reverse() });
     return;
   }
 
@@ -453,13 +468,13 @@ http.createServer(async (req, res) => {
         const result = await wechatPay.createUnifiedOrder({
           openId,
           amount,
-          description: '优势星测 - 深度版报告',
+          description: '劲脑·天赋探测仪 - 深度版报告',
         });
         wechatPay.savePaymentOrder({
           outTradeNo: result.outTradeNo,
           openId,
           amount,
-          description: '优势星测 - 深度版报告',
+          description: '劲脑·天赋探测仪 - 深度版报告',
         });
         sendJSON(res, 200, { success: true, ...result });
       } catch (err) {
@@ -499,6 +514,15 @@ http.createServer(async (req, res) => {
     const order = wechatPay.getOrder(params.outTradeNo);
     if (!order) { sendJSON(res, 404, { success: false, error: '订单不存在' }); return; }
     sendJSON(res, 200, { success: true, order: { status: order.status, paidAt: order.paidAt } });
+    return;
+  }
+
+  // 用户订单列表
+  if (req.url.startsWith('/api/payment/orders') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+    const orders = wechatPay.getUserOrders(params.openId);
+    sendJSON(res, 200, { success: true, orders });
     return;
   }
 
@@ -573,6 +597,58 @@ http.createServer(async (req, res) => {
     return;
   }
 
+  // ========== 粉丝分享系统 ==========
+
+  // 获取用户分享信息（含分享码自动生成）
+  if (req.url.startsWith('/api/user/share') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+    const info = userApi.generateShareCode(params.openId);
+    const stats = userApi.getFanStats(params.openId);
+    sendJSON(res, 200, { success: !!info, shareInfo: info, fanStats: stats });
+    return;
+  }
+
+  // 通过分享码获取分享者信息（访客打开分享链接时调用）
+  if (req.url.startsWith('/api/user/share/info') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.code) { sendJSON(res, 400, { success: false, error: '缺少 code' }); return; }
+    const user = userApi.getUserByShareCode(params.code);
+    sendJSON(res, 200, { success: !!user, sharer: user });
+    return;
+  }
+
+  // 绑定粉丝
+  if (req.url === '/api/user/fan/bind' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { hostOpenId, fanOpenId, fanName } = body;
+      if (!hostOpenId || !fanOpenId) { sendJSON(res, 200, { success: false, error: '缺少参数' }); return; }
+      const fan = userApi.bindFan(hostOpenId, fanOpenId, fanName || '匿名');
+      sendJSON(res, 200, { success: true, fan });
+    }).catch(() => sendJSON(res, 200, { success: false }));
+    return;
+  }
+
+  // 记录粉丝行为（如生成了报告、付费了）
+  if (req.url === '/api/user/fan/action' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { shareCode, action, meta } = body;
+      userApi.recordFanAction(shareCode, action, meta || {});
+      sendJSON(res, 200, { success: true });
+    }).catch(() => sendJSON(res, 200, { success: true }));
+    return;
+  }
+
+  // 获取粉丝列表
+  if (req.url.startsWith('/api/user/fans') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.openId) { sendJSON(res, 400, { success: false, error: '缺少 openId' }); return; }
+    const fans = userApi.getFans(params.openId);
+    const stats = userApi.getFanStats(params.openId);
+    sendJSON(res, 200, { success: true, fans, stats });
+    return;
+  }
+
   // 记录用户事件
   if (req.url === '/api/user/track' && req.method === 'POST') {
     parseJSONBody(req).then(body => {
@@ -595,62 +671,79 @@ http.createServer(async (req, res) => {
     return;
   }
 
+  // ========== 成绩检测 API（获客表单）==========
+
+  // 提交成绩检测
+  if (req.url === '/api/grade-assessment' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const { wechat, province, grade, subjects, scores, studentName, distributor } = body;
+      if (!wechat || !province || !grade || !subjects || !scores) {
+        sendJSON(res, 400, { success: false, error: '请填写完整信息' });
+        return;
+      }
+      saveGradeAssessment({ wechat, province, grade, subjects, scores, studentName, distributor: distributor || '', createdAt: new Date().toISOString() });
+      saveUserRecord({ type: 'grade', wechat, province, grade, subjects, scores, studentName, distributor: distributor || '', createdAt: new Date().toISOString() });
+      console.log('[成绩检测] 新线索 微信号:', wechat, '年级:', grade, '省份:', province, distributor ? '推广码:' + distributor : '');
+      sendJSON(res, 200, { success: true, message: '提交成功，我们的教育顾问会尽快联系您' });
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 管理后台查看成绩检测记录
+  if (req.url.startsWith('/api/grade-assessment/list') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
+    const records = loadGradeAssessments();
+    sendJSON(res, 200, { success: true, records: records.reverse() });
+    return;
+  }
+
   res.writeHead(404); res.end();
 }).listen(3002, () => console.log('✓ 服务: http://localhost:3002'));
+
+// ========== 成绩检测 - 数据存储 ==========
+const GRADE_FILE = join(__dirname, 'grade_assessments.json');
+function loadGradeAssessments() {
+  try {
+    if (!fs.existsSync(GRADE_FILE)) return [];
+    return JSON.parse(fs.readFileSync(GRADE_FILE, 'utf-8'));
+  } catch { return []; }
+}
+function saveGradeAssessment(record) {
+  const records = loadGradeAssessments();
+  records.push(record);
+  fs.writeFileSync(GRADE_FILE, JSON.stringify(records, null, 2), 'utf-8');
+}
+
+// ========== 用户测试记录 ==========
+function loadUserRecords() {
+  try {
+    if (!fs.existsSync(USER_RECORDS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(USER_RECORDS_FILE, 'utf-8'));
+  } catch { return []; }
+}
+function saveUserRecord(record) {
+  const records = loadUserRecords();
+  records.push(record);
+  fs.writeFileSync(USER_RECORDS_FILE, JSON.stringify(records, null, 2), 'utf-8');
+}
+
+// ========== 留资记录 ==========
+function loadLeadRecords() {
+  try {
+    if (!fs.existsSync(LEADS_FILE)) return [];
+    return JSON.parse(fs.readFileSync(LEADS_FILE, 'utf-8'));
+  } catch { return []; }
+}
+function saveLeadRecord(record) {
+  const records = loadLeadRecords();
+  records.push(record);
+  fs.writeFileSync(LEADS_FILE, JSON.stringify(records, null, 2), 'utf-8');
+}
 
 // ========== 微信支付回调 XML 回复 ==========
 function buildXMLReply(code, msg) {
   return `<xml><return_code><![CDATA[${code}]]></return_code><return_msg><![CDATA[${msg}]]></return_msg></xml>`;
-}
-
-// === DeepSeek API ===
-async function callDeepSeek(answers, name) {
-  if (!DEEPSEEK_KEY) throw new Error('no key');
-
-  const scores = Object.entries(answers).map(([k, v]) => `${k}: ${v}分`).join('\n');
-  const prompt = `你是一位积极心理学专家。${name || '用户'}完成了一份性格优势测试，各维度得分如下：
-${scores}
-
-请生成一份个人性格优势解读报告，包含以下4部分，用 === 分隔：
-
-第一部分：整体评估（80字内，概括最突出的优势）
-第二部分：维度详解（每个维度1-2句，分析得分含义）
-第三部分：行动建议（3条具体可行的建议）
-第四部分：一句话标签（10字内，给用户的标签）
-
-语言亲切有温度，不要像机器报告。`;
-
-  const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_KEY}` },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: '你是一个温暖有趣的心理学专家。回复亲切有温度。' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.8, max_tokens: 1500
-    })
-  });
-
-  const data = await resp.json();
-  const text = data.choices[0].message.content;
-  const parts = text.split('===').map(s => s.trim()).filter(Boolean);
-  return {
-    summary: parts[0] || '',
-    details: parts[1] || '',
-    advice: parts[2] || '',
-    tag: parts[3] || ''
-  };
-}
-
-function getStrengthFallback() {
-  return {
-    summary: '你是一个内心充满力量的人！具备出色的自我认知和成长潜力。',
-    details: '性格优势分布均衡，尤其在人际交往和执行力方面表现突出。',
-    advice: '1. 每天记录一件发挥优势的小事\n2. 找伙伴互相鼓励共同成长\n3. 主动寻找能发挥优势的场景',
-    tag: '潜力无限的成长者'
-  };
 }
 
 // === DeepSeek 星盘解读（知识库增强版）===

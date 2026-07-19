@@ -100,7 +100,7 @@ export async function createUnifiedOrder({ openId, amount, description }) {
     appid: APPID,
     mch_id: MCHID,
     nonce_str: nonceStr(),
-    body: description || '优势星测 - 深度版报告',
+    body: description || '劲脑·天赋探测仪 - 深度版报告',
     out_trade_no: outTradeNo(),
     total_fee: totalFee,
     spbill_create_ip: '127.0.0.1',
@@ -158,7 +158,7 @@ export function savePaymentOrder({ outTradeNo, openId, amount, description }) {
     outTradeNo,
     openId,
     amount,
-    description: description || '优势星测 - 深度版报告',
+    description: description || '劲脑·天赋探测仪 - 深度版报告',
     status: 'pending',
     createdAt: new Date().toISOString(),
     paidAt: null,
@@ -180,4 +180,10 @@ export function markOrderPaid(outTradeNo, transactionId) {
 
 export function getOrder(outTradeNo) {
   return loadOrders().find(o => o.outTradeNo === outTradeNo) || null;
+}
+
+export function getUserOrders(openId) {
+  return loadOrders()
+    .filter(o => o.openId === openId)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }

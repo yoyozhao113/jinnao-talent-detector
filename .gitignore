@@ -8,3 +8,4 @@ dist/
 !package-lock.json
 !vercel.json
 memory/
+*.zip

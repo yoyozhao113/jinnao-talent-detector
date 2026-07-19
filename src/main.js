@@ -1,5 +1,5 @@
 /**
- * 优势星测 - 主入口
+ * 劲脑·天赋探测仪 - 主入口
  * Step 1: 首页 → Step 2: 填信息/答题 → Step 3: 报告
  */
 import { CITIES } from './data/cities.js';
@@ -8,20 +8,23 @@ import track from './tracker.mjs';
 import { MBTI_QUESTIONS, calculateMBTI } from './mbti-data.js';
 import { getMbtiAstroCross } from './mbti-astro.js';
 import { MBTI_EDUCATION } from './mbti-edu.js';
+import { VARK_QUESTIONS, calculateVARK, getVARKSummary } from './vark-data.js';
+import { EFFICACY_QUESTIONS, LIKERT_5, calculateEfficacy } from './efficacy-data.js';
 
 // ========== State ==========
-let currentTestType = null;   // 'strength' | 'star' | 'mbti'
+let currentTestType = null;   // 'star' | 'mbti'
 let currentReport = null;
 let currentVersion = 'free';
 
 // 星盘表单暂存数据（预算页使用）
 let starFormData = null;
 
-// 性格测试状态
-let strengthState = { current: 0, answers: {} };
-
 // MBTI 测试状态
 let mbtiState = { current: 0, answers: {} };
+// VARK 测试状态
+let varkState = { current: 0, answers: {} };
+// 学科效能感测试状态
+let efficacyState = { current: 0, answers: {} };
 
 // 微信号
 const CONTACT_WECHAT = 'yoyozhao1341';
@@ -37,7 +40,7 @@ let currentUser = JSON.parse(localStorage.getItem('user_info') || 'null');
 
 // ========== DOM ==========
 const $ = id => document.getElementById(id);
-const pages = { home: $('page-home'), form: $('page-form'), budget: $('page-budget'), loading: $('page-loading'), report: $('page-report'), user: $('page-user') };
+const pages = { home: $('page-home'), form: $('page-form'), budget: $('page-budget'), loading: $('page-loading'), report: $('page-report'), user: $('page-user'), gradeHome: $('page-grade-home'), gradeForm: $('page-grade-form'), gradeDone: $('page-grade-done') };
 
 function showPage(name) {
   Object.values(pages).forEach(p => p?.classList.remove('active'));
@@ -57,28 +60,116 @@ window.goToStep2 = (type) => {
 
 function goToStep3() { showPage('report'); }
 
+// ========== 成绩薄弱点检测 ==========
+window.goGradeHome = () => { showPage('gradeHome'); };
+window.goGradeForm = () => {
+  showPage('gradeForm');
+  $('grade-error')?.classList.add('hidden');
+};
+
+window.addGradeSubject = () => {
+  const container = $('grade-subjects-container');
+  const row = document.createElement('div');
+  row.className = 'grade-subject-row';
+  row.innerHTML = `
+    <select class="g-subject" style="flex:1;">
+      <option value="语文">语文</option>
+      <option value="数学">数学</option>
+      <option value="英语">英语</option>
+      <option value="物理">物理</option>
+      <option value="化学">化学</option>
+      <option value="生物">生物</option>
+      <option value="历史">历史</option>
+      <option value="地理">地理</option>
+      <option value="政治">政治</option>
+    </select>
+    <input type="number" class="g-score" placeholder="成绩" min="0" max="100" style="width:80px;" />
+    <button type="button" class="grade-remove-subject" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+};
+
+window.submitGradeAssessment = async (e) => {
+  e.preventDefault();
+  const btn = $('grade-submit-btn');
+  const errEl = $('grade-error');
+
+  const wechat = $('g-wechat').value.trim();
+  const name = $('g-name').value.trim();
+  const province = $('g-province').value.trim();
+  const grade = $('g-grade').value;
+
+  if (!wechat || !province || !grade) {
+    errEl.textContent = '请填写微信号、省份和年级';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const subjectRows = document.querySelectorAll('#grade-subjects-container .grade-subject-row');
+  const subjects = [];
+  const scores = {};
+  subjectRows.forEach(row => {
+    const sub = row.querySelector('.g-subject')?.value;
+    const score = row.querySelector('.g-score')?.value;
+    if (sub) {
+      subjects.push(sub);
+      scores[sub] = score || '未提供';
+    }
+  });
+
+  if (subjects.length === 0) {
+    errEl.textContent = '请至少添加一个科目';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '提交中...';
+  errEl.classList.add('hidden');
+
+  const distributorRef = localStorage.getItem('distributor_ref_code') || '';
+
+  try {
+    const resp = await fetch('/api/grade-assessment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wechat, province, grade, subjects, scores, studentName: name || '', distributor: distributorRef || undefined }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showPage('gradeDone');
+      track('grade_assessment_submit', { province, grade });
+    } else {
+      errEl.textContent = data.error || '提交失败，请重试';
+      errEl.classList.remove('hidden');
+    }
+  } catch {
+    errEl.textContent = '网络错误，请检查网络后重试';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '提交分析';
+  }
+};
+
 // ========== 渲染 Step 2 ==========
 function renderForm(type) {
   if (type === 'star') renderStarForm();
   else if (type === 'mbti') renderMbtiQuiz();
-  else renderStrengthQuiz();
+  else if (type === 'vark') renderVarkQuiz();
+  else if (type === 'efficacy') renderEfficacyQuiz();
 }
 
 // ========== 渲染 Step 3 ==========
 function renderStep3() {
-  if (currentTestType === 'star') {
-    $('star-report-area').classList.remove('hidden');
-    $('strength-report-area').classList.add('hidden');
-    $('mbti-report-area').classList.add('hidden');
-  } else if (currentTestType === 'mbti') {
-    $('star-report-area').classList.add('hidden');
-    $('strength-report-area').classList.add('hidden');
-    $('mbti-report-area').classList.remove('hidden');
-  } else {
-    $('star-report-area').classList.add('hidden');
-    $('strength-report-area').classList.remove('hidden');
-    $('mbti-report-area').classList.add('hidden');
-  }
+  ['star-report-area','mbti-report-area','vark-report-area','efficacy-report-area'].forEach(id => {
+    const el = $(id);
+    if (el) el.classList.add('hidden');
+  });
+  if (currentTestType === 'star') $('star-report-area')?.classList.remove('hidden');
+  else if (currentTestType === 'mbti') $('mbti-report-area')?.classList.remove('hidden');
+  else if (currentTestType === 'vark') $('vark-report-area')?.classList.remove('hidden');
+  else if (currentTestType === 'efficacy') $('efficacy-report-area')?.classList.remove('hidden');
   goToStep3();
 }
 
@@ -126,29 +217,11 @@ function renderStarForm() {
           <div class="form-group half"><label>经度</label><input type="number" id="longitude" step="0.0001" placeholder="120.1551" /></div>
         </div>
       </div>
-      <div class="version-select">
-        <p class="version-label">选择报告版本</p>
-        <div class="version-cards">
-          <label class="version-card active" data-version="free">
-            <input type="radio" name="version" value="free" checked hidden />
-            <span class="version-badge free">免费</span>
-            <span class="version-name">基础版</span>
-            <span class="version-features">日月升+宫位+相位</span>
-          </label>
-          <label class="version-card" data-version="paid">
-            <input type="radio" name="version" value="paid" hidden />
-            <span class="version-badge premium">¥9.9</span>
-            <span class="version-name">深度版</span>
-            <span class="version-features">+格局+资源+风险</span>
-          </label>
-        </div>
-      </div>
       <button type="submit" class="btn-primary">开始解读</button>
     </form>`;
 
   // 重新初始化星盘表单逻辑
   initCitySelect();
-  initVersionCards();
   setDefaultDate();
 
   $('birth-form').addEventListener('submit', async (e) => {
@@ -177,17 +250,6 @@ function initCitySelect() {
     } else {
       $('manual-coords').style.display = 'none';
     }
-  });
-}
-
-function initVersionCards() {
-  document.querySelectorAll('.version-card').forEach(card => {
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.version-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-      card.querySelector('input[type="radio"]').checked = true;
-      currentVersion = card.dataset.version;
-    });
   });
 }
 
@@ -271,6 +333,9 @@ window.skipBudget = async () => {
   await doStarReport(starFormData, '', '');
 };
 
+// 暂存报告数据（留资后渲染用）
+let _pendingReportData = null;
+
 async function doStarReport(formData, budget, grade) {
   showLoading('AI 星盘计算中...', '正在解读孩子的天生密码');
   try {
@@ -296,193 +361,97 @@ async function doStarReport(formData, budget, grade) {
     if (!data.success) throw new Error(data.error || '计算失败');
 
     currentReport = data;
-    // 保存星盘数据到 localStorage（供 MBTI 交叉解读使用）
     localStorage.setItem('astro_chart', JSON.stringify(data.chart));
-    renderReport(data.report, formData.version);
-    const wheelResult = drawChartWheel('chart-wheel', data.chart);
-    setupAspectBadge(wheelResult);
-    renderStep3();
-    track('report_generated', { page: 'report', label: formData.version, meta: { type: currentTestType } });
-    autoSaveReport('star', formData.name, data.chart, data.report, data.version);
+
+    // 先保存报告数据，弹出留资窗
+    _pendingReportData = { report: data.report, chart: data.chart, name: formData.name, version: formData.version };
+    showLeadCapture();
   } catch (err) {
     showToast('计算失败：' + err.message);
     showPage('form');
   }
 }
 
-// ================================================================
-//  性格优势测试
-// ================================================================
+// ========== 留资弹窗 ==========
 
-const STRENGTH_QUESTIONS = [
-  { id: 'wisdom1', text: '面对复杂问题时，我喜欢从多角度思考，不急于下结论。', cat: '智慧' },
-  { id: 'wisdom2', text: '我经常能发现别人忽略的细节和联系。', cat: '智慧' },
-  { id: 'wisdom3', text: '朋友们遇到难题时，喜欢找我帮忙分析。', cat: '智慧' },
-  { id: 'courage1', text: '即使有风险，我也愿意站出来维护自己认为对的事。', cat: '勇气' },
-  { id: 'courage2', text: '面对挫折时，我通常能很快调整并继续前进。', cat: '勇气' },
-  { id: 'courage3', text: '我敢于表达与他人不同的观点。', cat: '勇气' },
-  { id: 'humanity1', text: '我很善于察觉别人的情绪和需求。', cat: '仁爱' },
-  { id: 'humanity2', text: '帮助别人取得成就会让我很开心。', cat: '仁爱' },
-  { id: 'humanity3', text: '朋友难过时，常是我第一个被倾诉的对象。', cat: '仁爱' },
-  { id: 'justice1', text: '在团队中，我很注重公平，不偏袒任何人。', cat: '正义' },
-  { id: 'justice2', text: '我擅长组织协调，让大家一起把事做成。', cat: '正义' },
-  { id: 'temperance1', text: '即使很生气，我也能控制自己不说过激的话。', cat: '节制' },
-  { id: 'temperance2', text: '我做决定前习惯权衡利弊，不冲动行事。', cat: '节制' },
-  { id: 'transcendence1', text: '我经常能感受到生活中的美好，并心怀感激。', cat: '超越' },
-  { id: 'transcendence2', text: '我相信每件事的发生都有它的意义。', cat: '超越' },
-];
-
-const OPTIONS = ['完全不符', '不太符合', '一般', '比较符合', '完全符合'];
-const OPT_VALS = [1, 2, 3, 4, 5];
-
-function renderStrengthQuiz() {
-  strengthState = { current: 0, answers: {} };
-
-  $('form-content').innerHTML = `
-    <div class="quiz-container">
-      <div class="quiz-header">
-        <h2>性格优势测试</h2>
-        <p>共 ${STRENGTH_QUESTIONS.length} 题，预计 3 分钟</p>
-      </div>
-      <div id="quiz-area">
-        <div class="quiz-progress">
-          <div class="quiz-bar"><div class="quiz-fill" id="quiz-fill" style="width:0%"></div></div>
-          <div class="quiz-count" id="quiz-count">1 / ${STRENGTH_QUESTIONS.length}</div>
+function showLeadCapture() {
+  const overlay = document.createElement('div');
+  overlay.id = 'lead-overlay';
+  overlay.className = 'lead-overlay';
+  overlay.innerHTML = `
+    <div class="lead-overlay-box">
+      <div class="lead-overlay-icon">🌟</div>
+      <h3 class="lead-overlay-title">报告已生成</h3>
+      <p class="lead-overlay-desc">
+        填写微信号，解锁 <strong>${_pendingReportData.name || '宝贝'}</strong> 的<br>完整星盘解读报告
+      </p>
+      <div class="lead-overlay-form">
+        <div class="lead-overlay-field">
+          <label>微信号 <span class="lead-required">*</span></label>
+          <input type="text" id="lead-wechat" placeholder="你的微信号" maxlength="30" autocomplete="off" />
         </div>
-        <div class="quiz-question" id="quiz-question"></div>
-        <div class="quiz-options" id="quiz-options"></div>
-        <div class="quiz-nav">
-          <button class="btn btn-prev" id="quiz-prev" onclick="strengthPrev()" style="display:none;">← 上一题</button>
-          <button class="btn btn-next" id="quiz-next" onclick="strengthNext()">下一题 →</button>
+        <div class="lead-overlay-field">
+          <label>手机号</label>
+          <input type="tel" id="lead-phone" placeholder="选填，方便课程顾问联系你" maxlength="11" />
         </div>
+        <div class="lead-overlay-tip">提交后即可查看完整报告，顾问不会频繁打扰</div>
+        <button class="btn-primary lead-overlay-btn" onclick="submitLeadCapture()">✓ 领取完整报告</button>
+        <button class="lead-overlay-skip" onclick="skipLeadCapture()">跳过，只看免费版</button>
       </div>
-      <div id="quiz-submit-area" class="hidden" style="text-align:center;padding:30px 0;">
-        <p style="font-size:1rem;margin-bottom:6px;color:#e8e6f0;">所有题目已答完！</p>
-        <p style="font-size:0.85rem;color:#8888a0;margin-bottom:16px;">请输入昵称，将生成专属报告</p>
-        <input class="input-field" id="strength-name" placeholder="你的昵称（选填）" maxlength="10" style="margin-bottom:12px;" />
-        <button class="btn-next" onclick="submitStrength()">生成报告</button>
-      </div>
-    </div>`;
-
-  showQuestion(0);
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  // 渐入动画
+  requestAnimationFrame(() => overlay.classList.add('active'));
+  document.getElementById('lead-wechat')?.focus();
 }
 
-function showQuestion(idx) {
-  const q = STRENGTH_QUESTIONS[idx];
-  const total = STRENGTH_QUESTIONS.length;
-  $('quiz-fill').style.width = `${((idx + 1) / total) * 100}%`;
-  $('quiz-count').textContent = `${idx + 1} / ${total}`;
-  $('quiz-question').innerHTML = `<span class="quiz-cat">${q.cat}</span>${q.text}`;
+window.submitLeadCapture = async function() {
+  const wechat = document.getElementById('lead-wechat')?.value?.trim();
+  const phone = document.getElementById('lead-phone')?.value?.trim();
+  if (!wechat) { showToast('请输入微信号'); return; }
 
-  $('quiz-options').innerHTML = OPTIONS.map((label, i) =>
-    `<div class="quiz-opt ${strengthState.answers[q.id] === OPT_VALS[i] ? 'selected' : ''}"
-         onclick="selectOpt(${i})">${label}</div>`
-  ).join('');
-
-  $('quiz-prev').style.display = idx === 0 ? 'none' : 'block';
-  $('quiz-next').textContent = idx === total - 1 ? '完成' : '下一题 →';
-}
-
-window.selectOpt = (valIdx) => {
-  const q = STRENGTH_QUESTIONS[strengthState.current];
-  strengthState.answers[q.id] = OPT_VALS[valIdx];
-  document.querySelectorAll('#quiz-options .quiz-opt').forEach((el, i) => {
-    el.classList.toggle('selected', i === valIdx);
-  });
-};
-
-window.strengthNext = () => {
-  const q = STRENGTH_QUESTIONS[strengthState.current];
-  if (!strengthState.answers[q.id]) { showToast('请选择一个选项'); return; }
-  if (strengthState.current === STRENGTH_QUESTIONS.length - 1) {
-    $('quiz-area').classList.add('hidden');
-    $('quiz-submit-area').classList.remove('hidden');
-    return;
-  }
-  strengthState.current++;
-  showQuestion(strengthState.current);
-};
-
-window.strengthPrev = () => {
-  if (strengthState.current > 0) { strengthState.current--; showQuestion(strengthState.current); }
-};
-
-window.submitStrength = async function() {
-  showLoading('AI 分析中...', '正在生成你的性格优势报告');
-
-  // 计算各维度得分
-  const catScores = {};
-  STRENGTH_QUESTIONS.forEach(q => {
-    const v = strengthState.answers[q.id] || 3;
-    catScores[q.cat] = (catScores[q.cat] || 0) + v;
-  });
-
-  const normalized = {};
-  const catCount = {};
-  STRENGTH_QUESTIONS.forEach(q => { catCount[q.cat] = (catCount[q.cat] || 0) + 1; });
-  Object.entries(catScores).forEach(([cat, val]) => {
-    normalized[cat] = Math.round((val / ((catCount[cat] || 1) * 5)) * 100);
-  });
-
-  const name = $('strength-name')?.value?.trim() || '';
+  const btn = document.querySelector('.lead-overlay-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '提交中...'; }
 
   try {
-    const res = await fetch('/api/report', {
+    await fetch('/api/lead', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answers: normalized, name })
+      body: JSON.stringify({
+        wechat,
+        phone: phone || '',
+        name: _pendingReportData?.name || '',
+        type: 'star',
+      })
     });
-    const data = await res.json();
-    currentReport = data.data;
-    renderStrengthReport(data.data, name);
-    renderStep3();
-    autoSaveReport('strength', name, null, data.data, 'free');
-  } catch (err) {
-    showToast('生成失败，请重试');
-    showPage('form');
+  } catch { /* 静默处理，不影响用户体验 */ }
+
+  if (btn) { btn.disabled = false; btn.textContent = '✓ 领取完整报告'; }
+  finishStarReport();
+};
+
+window.skipLeadCapture = function() {
+  finishStarReport();
+};
+
+function finishStarReport() {
+  // 关闭弹窗
+  const overlay = document.getElementById('lead-overlay');
+  if (overlay) {
+    overlay.classList.remove('active');
+    setTimeout(() => overlay.remove(), 300);
   }
-}
 
-function renderStrengthReport(data, name) {
-  // 将维度详解按行拆分，每行作为独立条目
-  const detailItems = data.details ? data.details.split('\n').filter(Boolean) : [];
+  if (!_pendingReportData) return;
+  const { report, chart, name, version } = _pendingReportData;
 
-  $('strength-result').innerHTML = `
-    <div class="sr-header">
-      <h2>${name || '你'}的性格优势报告</h2>
-      <p>AI 为你生成的个性化解读</p>
-    </div>
-    ${data.tag ? `<div class="sr-badge-wrap"><span class="sr-badge">${data.tag}</span></div>` : ''}
-    ${data.summary ? `<div class="sr-card"><h4>📊 整体评估</h4><p>${data.summary}</p></div>` : ''}
-    ${detailItems.length ? `
-    <div class="sr-card">
-      <h4>🔍 维度详解</h4>
-      ${detailItems.map(line => {
-        // 尝试提取维度名称（如 "智慧维度（80分）：..."）
-        const colonIdx = line.indexOf('：');
-        if (colonIdx > 0 && colonIdx < 20) {
-          const cat = line.substring(0, colonIdx);
-          const desc = line.substring(colonIdx + 1);
-          return `<div class="sr-detail-item"><div class="sr-detail-cat">${cat}</div><p style="margin:0;">${desc}</p></div>`;
-        }
-        // 尝试提取编号项（如 "1. ..." 或 "① ..."）
-        const dotIdx = line.indexOf('.');
-        if (dotIdx > 0 && dotIdx < 4) {
-          const num = line.substring(0, dotIdx + 1);
-          const rest = line.substring(dotIdx + 1);
-          return `<div class="sr-detail-item"><p style="margin:0;">${line}</p></div>`;
-        }
-        return `<div class="sr-detail-item"><p style="margin:0;">${line}</p></div>`;
-      }).join('')}
-    </div>` : (data.details ? `<div class="sr-card"><h4>🔍 维度详解</h4><p>${data.details}</p></div>` : '')}
-    ${data.advice ? `<div class="sr-card"><h4>💡 行动建议</h4><p>${renderFormattedAdvice(data.advice)}</p></div>` : ''}
-    ${renderLeadBox()}
-  `;
-  setTimeout(() => renderCommentSection('strength'), 100);
-}
-
-function renderFormattedAdvice(text) {
-  // 把数字编号的建议加粗显示
-  return text.replace(/(\d+[\.\、\s])/g, '<strong style="color:#5b9af5;">$1</strong>');
+  renderReport(report, version);
+  const wheelResult = drawChartWheel('chart-wheel', chart);
+  setupAspectBadge(wheelResult);
+  renderStep3();
+  track('report_generated', { page: 'report', label: version, meta: { type: currentTestType } });
+  autoSaveReport('star', name, chart, report, version);
+  _pendingReportData = null;
 }
 
 // ================================================================
@@ -600,6 +569,12 @@ window.submitMbti = function() {
   renderMbtiResult(result, crossData, eduData);
   renderStep3();
   autoSaveReport('mbti', '', null, result, 'free');
+
+  // 保存 MBTI 记录到后台
+  fetch('/api/user-records', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'mbti', mbtiType: result.type, mbtiName: result.name, name: result.name })
+  }).catch(() => {});
 };
 
 function renderMbtiResult(result, crossData, eduData) {
@@ -775,6 +750,357 @@ function renderMbtiResult(result, crossData, eduData) {
 }
 
 // ================================================================
+//  VARK 学习风格测试
+// ================================================================
+
+function renderVarkQuiz() {
+  varkState = { current: 0, answers: {} };
+  $('form-content').innerHTML = `
+    <div class="quiz-container">
+      <div class="quiz-header">
+        <h2>VARK 学习风格测试</h2>
+        <p>共 ${VARK_QUESTIONS.length} 题，每题四选一，预计 3 分钟</p>
+        <p style="font-size:0.75rem;color:#64748B;">测出你的学习偏好类型：视觉型 / 听觉型 / 读写型 / 动觉型</p>
+      </div>
+      <div id="vark-quiz-area">
+        <div class="quiz-progress">
+          <div class="quiz-bar"><div class="quiz-fill" id="vark-fill" style="width:0%"></div></div>
+          <div class="quiz-count" id="vark-count">1 / ${VARK_QUESTIONS.length}</div>
+        </div>
+        <div class="vark-question" id="vark-question"></div>
+        <div class="vark-options" id="vark-options"></div>
+        <div class="quiz-nav">
+          <button class="btn btn-prev" id="vark-prev" onclick="varkPrev()" style="display:none;">← 上一题</button>
+          <button class="btn btn-next" id="vark-next" onclick="varkNext()">下一题 →</button>
+        </div>
+      </div>
+      <div id="vark-submit-area" class="hidden" style="text-align:center;padding:30px 0;">
+        <p style="font-size:1rem;margin-bottom:6px;color:#e8e6f0;">所有题目已答完！</p>
+        <p style="font-size:0.85rem;color:#8888a0;margin-bottom:16px;">正在分析你的学习风格偏好...</p>
+        <button class="btn-next" onclick="submitVark()">查看结果</button>
+      </div>
+    </div>`;
+  showVarkQuestion(0);
+}
+
+function showVarkQuestion(idx) {
+  const q = VARK_QUESTIONS[idx];
+  const total = VARK_QUESTIONS.length;
+  const fill = $('vark-fill');
+  if (fill) fill.style.width = `${((idx + 1) / total) * 100}%`;
+  const count = $('vark-count');
+  if (count) count.textContent = `${idx + 1} / ${total}`;
+
+  const dimColors = { v: '#4ADE80', a: '#38BDF8', r: '#FBBF24', k: '#F87171' };
+  const dimLabels = { v: '视觉', a: '听觉', r: '读写', k: '动觉' };
+
+  const qEl = $('vark-question');
+  if (qEl) qEl.innerHTML = `<p style="font-size:1.05rem;margin:12px 0;">${idx + 1}. 在以下情境中，你更倾向哪种方式？</p>`;
+
+  const selected = varkState.answers[q.id];
+  const optEl = $('vark-options');
+  if (optEl) {
+    optEl.innerHTML = ['v', 'a', 'r', 'k'].map(key => `
+      <div class="vark-opt ${selected === key ? 'selected' : ''}" data-vark="${key}" style="border-left:3px solid ${dimColors[key]};">
+        <span class="vark-opt-tag" style="background:${dimColors[key]};">${dimLabels[key]}</span>
+        <span class="vark-opt-text">${q[key]}</span>
+      </div>
+    `).join('');
+    // 绑定点击事件
+    optEl.querySelectorAll('.vark-opt').forEach(el => {
+      el.addEventListener('click', () => varkSelect(el.dataset.vark));
+    });
+  }
+
+  const prev = $('vark-prev');
+  if (prev) prev.style.display = idx === 0 ? 'none' : 'block';
+  const next = $('vark-next');
+  if (next) next.textContent = idx === total - 1 ? '完成' : '下一题 →';
+}
+
+window.varkSelect = (val) => {
+  const q = VARK_QUESTIONS[varkState.current];
+  varkState.answers[q.id] = val;
+  document.querySelectorAll('#vark-options .vark-opt').forEach(el => {
+    el.classList.toggle('selected', el.dataset?.key === val);
+  });
+};
+
+// varkSelect 用 data-vark 属性实现，见 showVarkQuestion
+
+window.varkNext = () => {
+  const q = VARK_QUESTIONS[varkState.current];
+  if (!varkState.answers[q.id]) { showToast('请选择一个选项'); return; }
+  if (varkState.current === VARK_QUESTIONS.length - 1) {
+    const area = $('vark-quiz-area');
+    if (area) area.classList.add('hidden');
+    const submitArea = $('vark-submit-area');
+    if (submitArea) submitArea.classList.remove('hidden');
+    return;
+  }
+  varkState.current++;
+  showVarkQuestion(varkState.current);
+};
+
+window.varkPrev = () => {
+  if (varkState.current > 0) { varkState.current--; showVarkQuestion(varkState.current); }
+};
+
+window.submitVark = function() {
+  const result = calculateVARK(varkState.answers);
+  currentReport = { type: 'vark', varkResult: result };
+
+  // 保存历史
+  const history = JSON.parse(localStorage.getItem('vark_history') || '[]');
+  history.unshift({ primary: result.primary, primaryName: result.primaryName, date: new Date().toISOString().slice(0, 10) });
+  localStorage.setItem('vark_history', JSON.stringify(history.slice(0, 10)));
+
+  renderVarkResult(result);
+  renderStep3();
+  autoSaveReport('vark', '', null, result, 'free');
+
+  fetch('/api/user-records', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'vark', varkPrimary: result.primary, varkName: result.primaryName })
+  }).catch(() => {});
+};
+
+function renderVarkResult(result) {
+  const summary = getVARKSummary(result);
+  $('vark-result').innerHTML = `
+    <div class="mbti-header">
+      <div class="mbti-badge-wrap">
+        <span class="mbti-type-badge" style="background:#7C3AED;">VARK</span>
+        <span class="mbti-name-badge" style="background:#38BDF8;">${result.primaryName}</span>
+      </div>
+      <p class="mbti-title" style="font-size:0.95rem;">你的主导学习风格</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>📊 四维度得分</h4>
+      <div class="mbti-dims">
+        ${summary.bars.map(b => `
+          <div class="mbti-dim">
+            <div class="mbti-dim-label">${b.label} (${b.dim})</div>
+            <div class="mbti-dim-bar-wrap">
+              <div class="mbti-dim-bar" style="width:${b.pct}%;background:${b.dim === 'V' ? '#4ADE80' : b.dim === 'A' ? '#38BDF8' : b.dim === 'R' ? '#FBBF24' : '#F87171'};"></div>
+            </div>
+            <div class="mbti-dim-pct">${b.score}/${result.total} (${b.pct}%)</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="sr-card">
+      <h4>📖 风格解读</h4>
+      <p>${result.primaryDesc}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>💡 高效学习方法</h4>
+      <p>${result.studyTips}</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>💼 适合方向</h4>
+      <p>${result.careerSuggestions}</p>
+    </div>
+  `;
+}
+
+// ================================================================
+//  学业自我效能感测试
+// ================================================================
+
+function renderEfficacyQuiz() {
+  efficacyState = { current: 0, answers: {} };
+  $('form-content').innerHTML = `
+    <div class="quiz-container">
+      <div class="quiz-header">
+        <h2>学业自我效能感测评</h2>
+        <p>共 ${EFFICACY_QUESTIONS.length} 题，5 级评分，预计 5 分钟</p>
+        <p style="font-size:0.75rem;color:#64748B;">了解你的学习能力和学习行为自信心</p>
+      </div>
+      <div id="efficacy-quiz-area">
+        <div class="quiz-progress">
+          <div class="quiz-bar"><div class="quiz-fill" id="efficacy-fill" style="width:0%"></div></div>
+          <div class="quiz-count" id="efficacy-count">1 / ${EFFICACY_QUESTIONS.length}</div>
+        </div>
+        <div class="efficacy-question" id="efficacy-question"></div>
+        <div class="efficacy-options" id="efficacy-options"></div>
+        <div class="quiz-nav">
+          <button class="btn btn-prev" id="efficacy-prev" onclick="efficacyPrev()" style="display:none;">← 上一题</button>
+          <button class="btn btn-next" id="efficacy-next" onclick="efficacyNext()">下一题 →</button>
+        </div>
+      </div>
+      <div id="efficacy-submit-area" class="hidden" style="text-align:center;padding:30px 0;">
+        <p style="font-size:1rem;margin-bottom:6px;color:#e8e6f0;">所有题目已答完！</p>
+        <p style="font-size:0.85rem;color:#8888a0;margin-bottom:16px;">正在计算你的学业自我效能感...</p>
+        <button class="btn-next" onclick="submitEfficacy()">查看结果</button>
+      </div>
+    </div>`;
+  showEfficacyQuestion(0);
+}
+
+function showEfficacyQuestion(idx) {
+  const q = EFFICACY_QUESTIONS[idx];
+  const total = EFFICACY_QUESTIONS.length;
+  const fill = $('efficacy-fill');
+  if (fill) fill.style.width = `${((idx + 1) / total) * 100}%`;
+  const count = $('efficacy-count');
+  if (count) count.textContent = `${idx + 1} / ${total}`;
+
+  const qEl = $('efficacy-question');
+  if (qEl) qEl.innerHTML = `<p style="font-size:1.05rem;margin:12px 0;">${idx + 1}. ${q.text}</p>`;
+
+  const selected = efficacyState.answers[q.id];
+  const optEl = $('efficacy-options');
+  if (optEl) {
+    optEl.innerHTML = LIKERT_5.map(opt => `
+      <div class="efficacy-opt ${selected === opt.value ? 'selected' : ''}" data-efficacy="${opt.value}">
+        <span class="efficacy-opt-num">${opt.value}</span>
+        <span class="efficacy-opt-text">${opt.label}</span>
+      </div>
+    `).join('');
+    optEl.querySelectorAll('.efficacy-opt').forEach(el => {
+      el.addEventListener('click', () => efficacySelect(parseInt(el.dataset.efficacy)));
+    });
+  }
+
+  const prev = $('efficacy-prev');
+  if (prev) prev.style.display = idx === 0 ? 'none' : 'block';
+  const next = $('efficacy-next');
+  if (next) next.textContent = idx === total - 1 ? '完成' : '下一题 →';
+}
+
+window.efficacySelect = (val) => {
+  const q = EFFICACY_QUESTIONS[efficacyState.current];
+  efficacyState.answers[q.id] = val;
+  document.querySelectorAll('#efficacy-options .efficacy-opt').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.getAttribute('onclick')?.match(/\d+/)?.[0]) === val);
+  });
+};
+
+window.efficacyNext = () => {
+  const q = EFFICACY_QUESTIONS[efficacyState.current];
+  if (!efficacyState.answers[q.id]) { showToast('请选择一个选项'); return; }
+  if (efficacyState.current === EFFICACY_QUESTIONS.length - 1) {
+    const area = $('efficacy-quiz-area');
+    if (area) area.classList.add('hidden');
+    const submitArea = $('efficacy-submit-area');
+    if (submitArea) submitArea.classList.remove('hidden');
+    return;
+  }
+  efficacyState.current++;
+  showEfficacyQuestion(efficacyState.current);
+};
+
+window.efficacyPrev = () => {
+  if (efficacyState.current > 0) { efficacyState.current--; showEfficacyQuestion(efficacyState.current); }
+};
+
+window.submitEfficacy = function() {
+  const result = calculateEfficacy(efficacyState.answers);
+  currentReport = { type: 'efficacy', efficacyResult: result };
+
+  // 保存历史
+  const history = JSON.parse(localStorage.getItem('efficacy_history') || '[]');
+  history.unshift({
+    abilityAvg: result.ability.avg.toFixed(1),
+    behaviorAvg: result.behavior.avg.toFixed(1),
+    totalAvg: result.total.avg.toFixed(1),
+    date: new Date().toISOString().slice(0, 10)
+  });
+  localStorage.setItem('efficacy_history', JSON.stringify(history.slice(0, 10)));
+
+  renderEfficacyResult(result);
+  renderStep3();
+  autoSaveReport('efficacy', '', null, result, 'free');
+
+  fetch('/api/user-records', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'efficacy', efficacyTotal: result.total.avg.toFixed(1) })
+  }).catch(() => {});
+};
+
+function renderEfficacyResult(result) {
+  const levelColors = { '高': '#4ADE80', '中等偏高': '#38BDF8', '中等偏低': '#FBBF24', '较低': '#F87171' };
+  $('efficacy-result').innerHTML = `
+    <div class="mbti-header">
+      <div class="mbti-badge-wrap">
+        <span class="mbti-type-badge" style="background:#0EA5E9;">效能感</span>
+        <span class="mbti-name-badge" style="background:${levelColors[result.total.level.label]};">${result.total.level.label}</span>
+      </div>
+      <p class="mbti-title" style="font-size:0.95rem;">学业自我效能感综合水平</p>
+    </div>
+
+    <div class="sr-card">
+      <h4>📊 综合得分</h4>
+      <div style="text-align:center;padding:12px 0;">
+        <span style="font-size:2.5rem;font-weight:700;color:${levelColors[result.total.level.label]};">${result.total.avg.toFixed(1)}</span>
+        <span style="font-size:0.85rem;color:#64748B;"> / 5.0</span>
+        <div style="margin-top:4px;">
+          <span style="display:inline-block;padding:2px 12px;border-radius:10px;font-size:0.8rem;background:${result.total.level.color}22;color:${result.total.level.color};font-weight:600;">${result.total.level.label}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sr-card">
+      <h4>📈 各维度得分</h4>
+      <div class="mbti-dims">
+        ${[
+          { key: 'ability', label: result.dimNames.ability, data: result.ability },
+          { key: 'behavior', label: result.dimNames.behavior, data: result.behavior },
+        ].map(d => {
+          const pct = Math.round(d.data.avg / 5 * 100);
+          return `
+            <div class="mbti-dim">
+              <div class="mbti-dim-label">${d.label}</div>
+              <div class="mbti-dim-bar-wrap">
+                <div class="mbti-dim-bar" style="width:${pct}%;background:${levelColors[d.data.level.label]};"></div>
+              </div>
+              <div class="mbti-dim-pct">${d.data.avg.toFixed(1)}</div>
+            </div>
+            <p style="font-size:0.78rem;color:#64748B;margin:-4px 0 10px 0;">${d.data.level.label} · ${d.data.sum}分/满分${d.data.count * 5}分</p>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="sr-card">
+      <h4>📖 能力维度解读</h4>
+      <p>${result.dimDescs.ability}</p>
+      ${result.ability.level.label === '较低' || result.ability.level.label === '中等偏低'
+        ? '<p style="color:#F87171;margin-top:6px;">💡 建议：多关注自己的进步而非与他人比较，设定小目标逐步积累成功体验。</p>'
+        : ''}
+    </div>
+
+    <div class="sr-card">
+      <h4>📖 行为维度解读</h4>
+      <p>${result.dimDescs.behavior}</p>
+      ${result.behavior.level.label === '较低' || result.behavior.level.label === '中等偏低'
+        ? '<p style="color:#F87171;margin-top:6px;">💡 建议：尝试学习一些学习策略（如思维导图、费曼学习法），有意识地练习自我监控和反思。</p>'
+        : ''}
+    </div>
+
+    <div class="sr-card">
+      <h4>🌱 综合建议</h4>
+      <p>${getEfficacyAdvice(result)}</p>
+    </div>
+  `;
+}
+
+function getEfficacyAdvice(result) {
+  const a = result.ability.avg;
+  const b = result.behavior.avg;
+  if (a >= 4 && b >= 4) return '你的学业自我效能感整体较高！你既相信自己的学习能力，也善于运用有效的学习策略。继续保持当前的学习节奏，同时可以尝试挑战更高难度的任务来进一步成长。';
+  if (a >= 4 && b < 3) return '你对自己的学习能力很有信心，但在学习方法和策略运用上还有提升空间。建议学习一些高效的学习技巧（如间隔重复、主动回忆），将你的能力信心转化为有效行动。';
+  if (a < 3 && b >= 4) return '你善于使用学习策略和方法，但对自己的学习能力信心不足。试着记录自己的每一次小进步，相信"方法对+持续做=好结果"。你已经有了好的学习习惯，能力会随之而来。';
+  if (a < 2.5 && b < 2.5) return '你的学业自我效能感目前偏低，但这恰恰意味着巨大的成长空间。建议从最简单的学习任务开始，每次完成后给自己积极的反馈。同时寻求老师或同学的帮助，学习有效的学习方法。记住：效能感是可以培养的。';
+  return '你的学业自我效能感处于中等水平，有不错的提升基础。建议在优势维度上继续发挥，同时在薄弱维度上有针对性地练习。设定可实现的小目标，逐步建立信心。';
+}
+
+// ================================================================
 //  引导加微信
 // ================================================================
 
@@ -792,7 +1118,7 @@ window.copyWechat = () => {
   const t = CONTACT_WECHAT;
   if (navigator.clipboard) { navigator.clipboard.writeText(t).then(() => showToast('已复制')).catch(() => {}); }
   else { const ta = document.createElement('textarea'); ta.value = t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('已复制'); }
-  track('click_wechat', { page: currentTestType === 'star' ? 'report' : 'strength' });
+  track('click_wechat', { page: currentTestType === 'star' ? 'report' : 'mbti' });
 };
 
 // ================================================================
@@ -811,7 +1137,7 @@ function showLoading(text, hint) {
 
 function renderReport(report, version) {
   const badge = $('report-badge');
-  badge.textContent = version === 'paid' ? '深度版 ¥9.9' : '免费版';
+  badge.textContent = '劲脑·天赋探测仪';
   badge.className = `report-badge ${version}`;
   $('report-title').textContent = `${report.name || '宝贝'}的专属星盘解读`;
   const summary = report.chartSummary || {};
@@ -878,7 +1204,7 @@ function renderSection(section) {
     case 'edu_plan': html += renderEduPlan(c); break;
     case 'summary': html += renderSummary(c); break;
     case 'major': html += renderMajor(c); break;
-    case 'paywall': html += renderPaywall(section); break;
+
     default: if (typeof c === 'string') html += `<div class="value">${c}</div>`;
   }
   html += `</div>`;
@@ -886,8 +1212,8 @@ function renderSection(section) {
 }
 
 function renderSun(c) { return `<div class="content-block"><div class="label">孩子的性格</div><div class="value">${c.child||''}</div></div><div class="content-block"><div class="label">给父母的建议</div><div class="value">${c.parent||''}</div></div><div class="content-block"><div class="label">学习建议</div><div class="value">${c.edu||''}</div></div><div class="content-block"><div class="label">天生优势</div><div class="value">${c.strength||''}</div></div><div class="content-block"><div class="label">成长挑战</div><div class="value">${c.challenge||''}</div></div>`; }
-function renderMoon(c) { return `<div class="content-block"><div class="label">情绪特点</div><div class="value">${c.child||''}</div></div><div class="content-block"><div class="label">父母的回应方式</div><div class="value">${c.parent||''}</div></div><div class="content-block"><div class="label">情感需求</div><div class="value">${c.need||''}</div></div>`; }
-function renderRising(c) { return `<div class="content-block"><div class="label">给人的印象</div><div class="value">${c.desc||''}</div></div><div class="content-block"><div class="label">外在表现</div><div class="value">${c.appearance||''}</div></div><div class="content-block"><div class="label">社交风格</div><div class="value">${c.social||''}</div></div>`; }
+function renderMoon(c) { return `<div class="content-block"><div class="label">情绪特点</div><div class="value">${c.child||''}</div></div><div class="content-block"><div class="label">父母的回应方式</div><div class="value">${c.parent||''}</div></div>${c.parenting_style ? '<div class="content-block"><div class="label">养育方式反思</div><div class="value">' + c.parenting_style + '</div></div>' : ''}<div class="content-block"><div class="label">情感需求</div><div class="value">${c.need||''}</div></div>`; }
+function renderRising(c) { return `<div class="content-block"><div class="label">给人的印象</div><div class="value">${c.desc||''}</div></div>${c.social_strength ? '<div class="content-block"><div class="label">社交优势</div><div class="value">' + c.social_strength + '</div></div>' : ''}${c.social_weakness ? '<div class="content-block"><div class="label">社交注意事项</div><div class="value">' + c.social_weakness + '</div></div>' : ''}${c.parent_guide ? '<div class="content-block"><div class="label">家长引导建议</div><div class="value">' + c.parent_guide + '</div></div>' : '<div class="content-block"><div class="label">社交风格</div><div class="value">' + (c.social||'') + '</div></div>'}`; }
 
 function renderHouses(houses) {
   // 兼容字符串和数组两种格式
@@ -1092,22 +1418,42 @@ function renderTalent(c) {
 }
 
 function renderEmotion(c) {
-  return `
-    <div class="content-block">
-      <div class="label">💭 情绪模式</div>
-      <div class="value">${c.pattern||''}</div>
-    </div>
-    <div class="content-block">
-      <div class="label">🔐 安全感来源</div>
-      <div class="value" style="color:#66bb6a;">${c.security||''}</div>
-    </div>
-    <div class="content-block">
-      <div class="label">🤗 最佳安抚方式</div>
-      <div class="value">${c.soothe||''}</div>
-    </div>
-    ${c.momReflection ? `<div class="content-block"><div class="label">👩 母亲形象参考</div><div class="value">${c.momReflection}</div></div>` : ''}
-    ${c.communication ? `<div class="content-block"><div class="label">💬 家长沟通策略</div><div class="value" style="color:#5b9af5;">${c.communication}</div></div>` : ''}
-  `;
+  // backward compatibility: renderEmotion still renders old format
+  return renderPsychology(c);
+}
+function renderPsychology(c) {
+  let html = '';
+  if (c.personality_type) html += '<div class="content-block"><div class="label">心理气质类型</div><div class="value">' + c.personality_type + '</div></div>';
+  if (c.inner_world) html += '<div class="content-block"><div class="label">内心世界</div><div class="value">' + c.inner_world + '</div></div>';
+  if (c.parent_child_dynamics) html += '<div class="content-block"><div class="label">亲子关系诊断</div><div class="value">' + c.parent_child_dynamics + '</div></div>';
+  if (c.attachment_style) html += '<div class="content-block"><div class="label">依恋类型分析</div><div class="value">' + c.attachment_style + '</div></div>';
+  if (c.emotional_trigger) html += '<div class="content-block"><div class="label">情绪触发点</div><div class="value">' + c.emotional_trigger + '</div></div>';
+  if (c.communication_formula) html += '<div class="content-block"><div class="label">沟通黄金法则</div><div class="value">' + c.communication_formula + '</div></div>';
+  // Old emotion fields (backward compat)
+  if (!c.personality_type && !c.inner_world && c.child) html += '<div class="content-block"><div class="label">情绪特点</div><div class="value">' + c.child + '</div></div>';
+  if (!c.parent_child_dynamics && c.parent) html += '<div class="content-block"><div class="label">父母的回应方式</div><div class="value">' + c.parent + '</div></div>';
+  if (c.need && !c.inner_world) html += '<div class="content-block"><div class="label">情感需求</div><div class="value">' + c.need + '</div></div>';
+  if (c.pattern) html += '<div class="content-block"><div class="label">情绪模式</div><div class="value">' + c.pattern + '</div></div>';
+  if (c.security) html += '<div class="content-block"><div class="label">安全感来源</div><div class="value">' + c.security + '</div></div>';
+  if (c.soothe) html += '<div class="content-block"><div class="label">安抚方式</div><div class="value">' + c.soothe + '</div></div>';
+  if (c.momReflection) html += '<div class="content-block"><div class="label">母亲形象反思</div><div class="value">' + c.momReflection + '</div></div>';
+  if (c.communication) html += '<div class="content-block"><div class="label">沟通策略</div><div class="value">' + c.communication + '</div></div>';
+  return html;
+}function renderParenting(c) {
+  let html = '';
+  if (c.family_atmosphere) html += '<div class="content-block"><div class="label">家庭氛围诊断</div><div class="value">' + c.family_atmosphere + '</div></div>';
+  if (c.father_role) html += '<div class="content-block"><div class="label">父亲角色建议</div><div class="value">' + c.father_role + '</div></div>';
+  if (c.mother_role) html += '<div class="content-block"><div class="label">母亲角色建议</div><div class="value">' + c.mother_role + '</div></div>';
+  if (c.parenting_strength) html += '<div class="content-block"><div class="label">你们的养育优势</div><div class="value">' + c.parenting_strength + '</div></div>';
+  if (c.parenting_risk) html += '<div class="content-block"><div class="label">最容易踩的坑</div><div class="value">' + c.parenting_risk + '</div></div>';
+  if (c.action_tips) html += '<div class="content-block"><div class="label">行动建议</div><div class="value">' + c.action_tips + '</div></div>';
+  if (c.family_ritual) html += '<div class="content-block"><div class="label">推荐家庭仪式</div><div class="value">' + c.family_ritual + '</div></div>';
+  // Old fields from other sections for backward compat
+  if (c.atmosphere) html += '<div class="content-block"><div class="label">家庭氛围</div><div class="value">' + c.atmosphere + '</div></div>';
+  if (c.father) html += '<div class="content-block"><div class="label">父亲角色</div><div class="value">' + c.father + '</div></div>';
+  if (c.mother) html += '<div class="content-block"><div class="label">母亲角色</div><div class="value">' + c.mother + '</div></div>';
+  if (c.action_tips && !c.action_tips) html += '<div class="content-block"><div class="label">行动建议</div><div class="value">' + c.action_tips + '</div></div>';
+  return html;
 }
 
 function renderEduPath(c) {
@@ -1221,16 +1567,6 @@ function renderMajor(c) {
   `;
 }
 
-function renderPaywall(section) {
-  const items = section.lockedSections || [];
-  let html = `<div class="paywall-notice">以下深度解读需付费解锁</div><div class="paywall-price">¥${section.content?.price||'9.9'}</div><div class="paywall-cta">${section.content?.cta||'解锁完整深度报告'}</div>`;
-  items.forEach(item => { html += `<div class="paywall-item"><div class="paywall-item-title">🔒 ${item.title}</div><div class="paywall-item-hint">${item.hint||''}</div></div>`; });
-  html += `<button class="btn-unlock" onclick="window.unlockReport()">🔓 解锁完整报告 ¥${section.content?.price||'9.9'}</button>`;
-  return html;
-}
-
-window.hideTalentModal = () => { const d = document.getElementById('talent-modal'); if (d) d.close(); };
-
 function renderTalentPrompt() {
   const div = document.createElement('div');
   div.className = 'talent-prompt';
@@ -1251,173 +1587,7 @@ window.showTalentConsult = () => {
   dialog.showModal();
 };
 
-window.unlockReport = () => {
-  track('click_unlock', { page: 'report', label: currentVersion || 'free' });
 
-  // 不在微信浏览器内 → 弹微信号
-  if (!isWeChatBrowser()) {
-    showToast('请复制微信号 ' + CONTACT_WECHAT + ' 联系付费解锁');
-    return;
-  }
-
-  // 还没有 OpenID → 跳微信 OAuth
-  if (!wechatOpenId) {
-    const redirectUri = encodeURIComponent(window.location.href.split('?')[0]);
-    const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${WECHAT_APPID}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=pay#wechat_redirect`;
-    // 保存当前页面状态，OAuth 回来后恢复
-    sessionStorage.setItem('oauth_return', 'unlock');
-    window.location.href = oauthUrl;
-    return;
-  }
-
-  // 已有 OpenID → 发起支付
-  startWeChatPay();
-};
-
-/**
- * 判断是否在微信浏览器内
- */
-function isWeChatBrowser() {
-  return /MicroMessenger/i.test(navigator.userAgent);
-}
-
-/**
- * 发起微信支付
- */
-async function startWeChatPay() {
-  showToast('正在创建支付订单...');
-  try {
-    const resp = await fetch('/api/payment/create-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ openId: wechatOpenId, amount: 9.9 }),
-    });
-    const data = await resp.json();
-
-    if (!data.success) {
-      showToast('支付失败: ' + (data.error || '创建订单失败'));
-      return;
-    }
-
-    // 调起微信 JSAPI 支付
-    const params = data.jsapiParams;
-    if (typeof WeixinJSBridge === 'undefined') {
-      showToast('请在微信内打开');
-      return;
-    }
-
-    WeixinJSBridge.invoke('getBrandWCPayRequest', {
-      appId: params.appId,
-      timeStamp: params.timeStamp,
-      nonceStr: params.nonceStr,
-      package: params.package,
-      signType: params.signType,
-      paySign: params.paySign,
-    }, function (res) {
-      if (res.err_msg === 'get_brand_wcpay_request:ok') {
-        // 支付成功
-        showToast('支付成功！正在解锁报告...');
-        upgradeToPaidReport(data.outTradeNo);
-      } else if (res.err_msg === 'get_brand_wcpay_request:cancel') {
-        showToast('支付已取消');
-      } else {
-        showToast('支付失败: ' + (res.err_msg || '未知错误'));
-      }
-    });
-  } catch (err) {
-    console.error('[支付] 错误:', err);
-    showToast('支付异常，请重试');
-  }
-}
-
-/**
- * 支付成功后升级为付费报告
- */
-async function upgradeToPaidReport(outTradeNo) {
-  // 检查支付状态（等待微信回调）
-  let paid = false;
-  for (let i = 0; i < 20; i++) {
-    await sleep(1000);
-    const resp = await fetch(`/api/payment/status?outTradeNo=${outTradeNo}`);
-    const data = await resp.json();
-    if (data.success && data.order.status === 'paid') {
-      paid = true;
-      break;
-    }
-  }
-
-  if (!paid) {
-    showToast('支付已确认，稍后刷新即可看到完整报告');
-    return;
-  }
-
-  // 设为已付费，重新渲染报告
-  currentVersion = 'paid';
-  localStorage.setItem('report_paid_' + (currentReport?.chart?.id || ''), '1');
-
-  // 更新徽标
-  const badge = $('report-badge');
-  if (badge) badge.textContent = '深度版 ¥9.9';
-  badge.className = 'report-badge paid';
-
-  // 隐藏 paywall 区域，显示原有付费内容
-  document.querySelectorAll('.paywall').forEach(el => el.remove());
-  document.querySelectorAll('.paywall-notice, .paywall-price, .paywall-cta, .btn-unlock').forEach(el => el.remove());
-
-  // 在 paywall 位置插入付费板块（用 fallback 生成）
-  if (currentReport?.chart && currentReport?.report) {
-    showToast('报告已解锁！');
-  }
-}
-
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
-
-/**
- * 检查 OAuth 回调并获取 OpenID
- */
-async function handleWeChatOAuth() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-
-  if (!code) {
-    // 检查之前是否 OAuth 回来过
-    const oauthReturn = sessionStorage.getItem('oauth_return');
-    if (oauthReturn) {
-      // 说明在微信内但 OAuth 未完成，刷新清除状态
-      sessionStorage.removeItem('oauth_return');
-    }
-    return;
-  }
-
-  // 有 code → 换取 OpenID
-  try {
-    const resp = await fetch(`/api/wechat/oauth?code=${code}`);
-    const data = await resp.json();
-    if (data.success && data.openId) {
-      wechatOpenId = data.openId;
-      localStorage.setItem('wechat_openid', data.openId);
-
-      // 清除 URL 中的 code 参数
-      const url = new URL(window.location);
-      url.searchParams.delete('code');
-      url.searchParams.delete('state');
-      window.history.replaceState({}, '', url);
-
-      // 如果是从 unlock 跳回来的，继续支付
-      const returnAction = sessionStorage.getItem('oauth_return');
-      if (returnAction === 'unlock') {
-        sessionStorage.removeItem('oauth_return');
-        startWeChatPay();
-      }
-    }
-  } catch (err) {
-    console.error('[OAuth] 获取 OpenID 失败:', err);
-  }
-}
-
-// ========== END 支付相关 ==========
 
 // ================================================================
 //  用户系统（登录 / 历史记录）
@@ -1482,7 +1652,15 @@ window.wechatLogin = function() {
 window.guestLogin = function() {
   const name = ($('guest-name')?.value || '').trim() || '访客';
   const guestId = 'guest_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  currentUser = { userId: guestId, openId: guestId, nickName: name, traits: {}, createdAt: new Date().toISOString() };
+  // 生成8位显示ID（不含数字0，尾号不为0）
+  let displayId = parseInt(localStorage.getItem('guest_display_id') || '0');
+  if (!displayId) {
+    do {
+      displayId = 11342801 + Math.floor(Math.random() * 80000);
+    } while (/0/.test(String(displayId)));
+    localStorage.setItem('guest_display_id', String(displayId));
+  }
+  currentUser = { userId: guestId, displayId, openId: guestId, nickName: name, traits: {}, createdAt: new Date().toISOString() };
   localStorage.setItem('user_info', JSON.stringify(currentUser));
   showToast('欢迎，' + name);
   renderUserProfile();
@@ -1492,67 +1670,265 @@ function renderUserProfile() {
   const user = currentUser;
   if (!user) { renderUserLogin(); return; }
 
-  // 加载报告列表
-  loadUserReports(user.openId).then(reports => {
+  // 并行加载报告和订单
+  Promise.all([
+    loadUserReports(user.openId),
+    loadUserOrders(user.openId),
+  ]).then(([reports, orders]) => {
     const count = reports.length;
     const paidCount = reports.filter(r => r.paid).length;
-    const lastReport = reports[0];
 
-    $('user-content').innerHTML = `
-      <div style="padding:20px;">
-        <div style="text-align:center;padding:16px 0 20px;border-bottom:1px solid #1A2332;">
-          <div style="font-size:2.4rem;margin-bottom:6px;">👤</div>
-          <h2 style="color:#E2E8F0;font-size:1.1rem;">${user.nickName}</h2>
-          <p style="color:#64748B;font-size:0.8rem;margin-top:4px;">
-            ${count} 份报告 · ${paidCount} 次付费
-          </p>
-        </div>
-
-        <div style="margin-top:16px;">
-          <h4 style="color:#94A3B8;font-size:0.85rem;margin-bottom:10px;">
-            📋 我的报告（${count}）
-          </h4>
-          ${count === 0 ? `
-            <div style="text-align:center;padding:30px 0;color:#475569;font-size:0.85rem;">
-              还没有生成过报告<br>
-              <span style="cursor:pointer;color:#38BDF8;" onclick="goHome();closeUserPage();">
-                去首页开始测试 →
-              </span>
-            </div>
-          ` : `
-            <div class="user-report-list">
-              ${reports.map(r => `
-                <div class="user-report-item" onclick="viewUserReport('${r.id}')">
-                  <div class="user-report-icon">${getReportIcon(r.type)}</div>
-                  <div class="user-report-info">
-                    <div class="user-report-name">${r.name || '未命名'} <span class="user-report-type">${getReportTypeName(r.type)}</span></div>
-                    <div class="user-report-meta">${formatDate(r.createdAt)} ${r.paid ? '· 深度版' : ''}</div>
-                  </div>
-                  <span class="user-report-badge ${r.paid ? 'paid' : 'free'}">${r.paid ? '深度' : '免费'}</span>
-                </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
-
-        <div style="text-align:center;margin-top:20px;padding-bottom:20px;">
-          <button class="btn btn-prev" onclick="logoutUser()" style="width:100%;max-width:200px;">
-            退出登录
-          </button>
-        </div>
-      </div>`;
+    // 获取分码信息
+    fetch(`/api/user/share?openId=${encodeURIComponent(user.openId)}`).then(r => r.json()).then(data => {
+      const shareCode = data.success ? data.shareInfo?.shareCode || '' : '';
+      const shareLink = data.success ? data.shareInfo?.shareLink || '' : '';
+      const fanStats = data.success ? data.fanStats : null;
+      renderProfileHTML(reports, orders, count, paidCount, shareCode, shareLink, fanStats);
+    }).catch(() => {
+      renderProfileHTML(reports, orders, count, paidCount, '', '', null);
+    });
   }).catch(() => {
-    // 离线状态也能看本地报告
-    $('user-content').innerHTML = `<div style="padding:20px;text-align:center;color:#64748B;">加载失败</div>`;
+    $('user-content').innerHTML = `<div style="padding:40px 20px;text-align:center;color:#64748B;">加载失败</div>`;
   });
 }
 
+function renderProfileHTML(reports, orders, count, paidCount, shareCode, shareLink, fanStats) {
+  const user = currentUser;
+
+  // 报告列表 HTML
+  const reportsHTML = count === 0 ? `
+    <div class="profile-empty">
+      还没有测评记录<br>
+      <span style="cursor:pointer;color:#38BDF8;" onclick="goHome();closeUserPage();">去首页开始测试 →</span>
+    </div>
+  ` : `
+    <div class="profile-report-list">
+      ${reports.map(r => `
+        <div class="profile-report-item" onclick="viewUserReport('${r.id}')">
+          <div class="profile-report-icon">${getReportIcon(r.type)}</div>
+          <div class="profile-report-info">
+            <div class="profile-report-name">${r.name || '未命名'} <span class="profile-report-type">${getReportTypeName(r.type)}</span></div>
+            <div class="profile-report-meta">${formatDate(r.createdAt)}</div>
+          </div>
+          <span class="profile-report-badge ${r.paid ? 'paid' : 'free'}">${r.paid ? '深度' : '免费'}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // 订单列表 HTML
+  const paidOrders = orders.filter(o => o.status === 'paid');
+  const ordersHTML = paidOrders.length === 0 ? `
+    <div class="profile-empty">暂无订单记录</div>
+  ` : `
+    <div class="profile-order-list">
+      ${paidOrders.slice(0, 5).map(o => `
+        <div class="profile-order-item">
+          <div class="profile-order-info">
+            <div class="profile-order-name">${o.description || '深度版报告'}</div>
+            <div class="profile-order-meta">${formatDate(o.paidAt)}</div>
+          </div>
+
+        </div>
+      `).join('')}
+      ${paidOrders.length > 5 ? `<div class="profile-more">共 ${paidOrders.length} 笔订单</div>` : ''}
+    </div>
+  `;
+
+  // 分享码区域
+  const shareHTML = shareCode ? `
+    <div class="profile-share-bar">
+      <span class="profile-share-label">🔗 分享码</span>
+      <span class="profile-share-code">${shareCode}</span>
+      <button class="profile-share-btn" onclick="copyShareLink('${shareLink}')">复制</button>
+    </div>
+    <div class="profile-share-stats">
+      <span>👥 ${fanStats?.totalFans || 0} 粉丝</span>
+      <span>📈 ${fanStats?.newThisWeek || 0} 本周新增</span>
+    </div>
+  ` : '';
+
+  $('user-content').innerHTML = `
+    <div class="profile-page">
+
+      <!-- 用户资料头部 -->
+      <div class="profile-header">
+        <div class="profile-avatar">${user.openId.startsWith('guest_') ? '👤' : '👤'}</div>
+        <div class="profile-name">${user.nickName}</div>
+        <div class="profile-uid">UID ${user.displayId || '------'}</div>
+        <div class="profile-badge">${count} 份测评 · ${paidCount} 次付费</div>
+      </div>
+
+      <!-- 分享码 -->
+      ${shareHTML}
+
+      <!-- 菜单列表 -->
+      <div class="profile-body">
+
+        <!-- 我的测评 -->
+        <div class="profile-menu-section">
+          <div class="profile-menu-title">
+            <span>📋 我的测评</span>
+            <span class="profile-menu-count">${count}</span>
+          </div>
+          ${reportsHTML}
+        </div>
+
+        <!-- 订单记录 -->
+        <div class="profile-menu-section">
+          <div class="profile-menu-title">
+            <span>📦 订单记录</span>
+            <span class="profile-menu-count">${paidOrders.length}</span>
+          </div>
+          ${ordersHTML}
+        </div>
+
+        <!-- 我的服务 -->
+        <div class="profile-menu-section">
+          <div class="profile-menu-title"><span>⭐ 我的服务</span></div>
+          <div class="profile-service-grid">
+            <div class="profile-service-item" onclick="openDistributorCenter()">
+              <div class="profile-service-icon dist">💰</div>
+              <span>推广赚钱</span>
+            </div>
+            <div class="profile-service-item" onclick="copyShareLink('${shareLink}')">
+              <div class="profile-service-icon share">🔗</div>
+              <span>分享好友</span>
+            </div>
+            <div class="profile-service-item" onclick="window.goHome();closeUserPage();">
+              <div class="profile-service-icon test">🧠</div>
+              <span>开始测评</span>
+            </div>
+            <div class="profile-service-item" onclick="showToast('即将上线，敬请期待')">
+              <div class="profile-service-icon vip">👑</div>
+              <span>会员中心</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 建议与反馈 / 关于我 -->
+        <div class="profile-menu-item" onclick="showFeedbackModal()">
+          <span>💬 建议与反馈</span>
+          <span class="profile-menu-arrow">›</span>
+        </div>
+        <div class="profile-menu-item" onclick="showAboutModal()">
+          <span>ℹ️ 关于我</span>
+          <span class="profile-menu-arrow">›</span>
+        </div>
+
+        <!-- 公众号宣传位 -->
+        <div class="profile-oa-banner" onclick="copyOaText()">
+          <div class="profile-oa-icon">📢</div>
+          <div class="profile-oa-content">
+            <div class="profile-oa-title">关注公众号 · 获取更多干货</div>
+            <div class="profile-oa-desc">星盘知识 · 教育方法 · 天赋培养</div>
+          </div>
+          <div class="profile-oa-arrow">›</div>
+        </div>
+
+        <!-- 退出登录 -->
+        <button class="profile-logout" onclick="logoutUser()">退出登录</button>
+
+      </div>
+    </div>`;
+}
+async function loadUserOrders(openId) {
+  try {
+    const resp = await fetch(`/api/payment/orders?openId=${encodeURIComponent(openId)}`);
+    const data = await resp.json();
+    return data.orders || [];
+  } catch { return []; }
+}
+
+// ========== 建议与反馈弹窗 ==========
+
+function showFeedbackModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>💬 建议与反馈</span>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:#64748B;font-size:0.85rem;margin-bottom:14px;line-height:1.6;">
+          你的每一条建议都帮助我们做得更好
+        </p>
+        <textarea id="feedback-input" class="modal-textarea" placeholder="请描述你的建议或遇到的问题..." rows="4"></textarea>
+        <button class="btn-next" onclick="submitFeedback()" style="width:100%;padding:12px 0;font-size:0.9rem;">提交反馈</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+window.submitFeedback = function() {
+  const text = document.getElementById('feedback-input')?.value?.trim();
+  if (!text) { showToast('请输入反馈内容'); return; }
+  // 存到本地或发送到服务器
+  const feedbacks = JSON.parse(localStorage.getItem('user_feedbacks') || '[]');
+  feedbacks.push({ text, createdAt: new Date().toISOString(), user: currentUser?.nickName || '' });
+  localStorage.setItem('user_feedbacks', JSON.stringify(feedbacks));
+  showToast('感谢你的反馈！');
+  document.querySelector('.modal-overlay')?.remove();
+  // 尝试同步到服务器
+  if (currentUser?.openId && !currentUser.openId.startsWith('guest_')) {
+    fetch('/api/user/track', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ openId: currentUser.openId, event: 'feedback', meta: { content: text } })
+    }).catch(() => {});
+  }
+};
+
+// ========== 关于我弹窗 ==========
+
+function showAboutModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>ℹ️ 关于我</span>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <div style="font-size:3rem;margin-bottom:10px;">✦</div>
+        <h3 style="color:#E2E8F0;font-size:1.1rem;margin-bottom:4px;">劲脑·天赋探测仪</h3>
+        <p style="color:#64748B;font-size:0.8rem;margin-bottom:16px;">v2.0.0</p>
+        <div style="background:#060A1A;border-radius:10px;padding:14px;text-align:left;line-height:1.8;">
+          <p style="color:#94A3B8;font-size:0.85rem;">
+            劲脑·天赋探测仪是一款基于AI的亲子天赋解读工具，融合星盘学、MBTI人格理论与五者天赋体系，帮助家长发现孩子的天生优势与教育方向。
+          </p>
+        </div>
+        <p style="color:#475569;font-size:0.75rem;margin-top:16px;">
+          客服微信：${CONTACT_WECHAT}
+        </p>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+// 复制公众号文案
+function copyOaText() {
+  const text = '关注「劲脑·天赋探测仪」公众号，获取星盘知识、教育方法、天赋培养等干货内容。';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('公众号信息已复制')).catch(() => {});
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); showToast('公众号信息已复制');
+  }
+}
+
 function getReportIcon(type) {
-  return type === 'star' ? '🔯' : type === 'mbti' ? '🧠' : '💪';
+  return type === 'star' ? '🔯' : '🧠';
 }
 
 function getReportTypeName(type) {
-  return type === 'star' ? '星盘' : type === 'mbti' ? 'MBTI' : '性格优势';
+  return type === 'star' ? '星盘' : 'MBTI';
 }
 
 function formatDate(iso) {
@@ -1594,13 +1970,6 @@ window.viewUserReport = async function(reportId) {
         }
         renderStep3();
       }
-    } else if (r.type === 'strength') {
-      if (r.reportData) {
-        currentReport = { data: r.reportData };
-        currentTestType = 'strength';
-        renderStrengthReport(r.reportData, r.name || '');
-        renderStep3();
-      }
     }
   } catch { showToast('加载失败'); }
 };
@@ -1634,6 +2003,131 @@ async function autoSaveReport(type, name, chartData, reportData, version) {
       }),
     });
   } catch { /* 静默失败，不影响用户体验 */ }
+}
+
+// ========== 分享与粉丝系统 ==========
+
+/**
+ * 渲染分享中心（在用户资料页内嵌）
+ */
+function renderShareCenter() {
+  if (!currentUser) return;
+  const openId = currentUser.openId;
+
+  fetch(`/api/user/share?openId=${encodeURIComponent(openId)}`).then(r => r.json()).then(data => {
+    if (!data.success) return;
+    const { shareInfo, fanStats } = data;
+    const shareLink = shareInfo?.shareLink || '';
+    const shareCode = shareInfo?.shareCode || '';
+
+    // 插入到用户资料页分享区块
+    const shareHtml = `
+      <div class="share-center">
+        <div class="share-header">
+          <div class="share-qr-placeholder">🔗</div>
+          <h4>我的分享</h4>
+          <p>分享链接给好友，他们将成为你的粉丝</p>
+        </div>
+
+        <div class="share-code-box">
+          <span class="share-code-label">分享码</span>
+          <span class="share-code-value">${shareCode}</span>
+          <button class="share-copy-btn" onclick="copyShareLink('${shareLink}')">复制链接</button>
+        </div>
+
+        <div class="share-stats">
+          <div class="share-stat">
+            <span class="share-stat-num">${fanStats?.totalFans || 0}</span>
+            <span class="share-stat-label">总粉丝</span>
+          </div>
+          <div class="share-stat">
+            <span class="share-stat-num">${fanStats?.newThisWeek || 0}</span>
+            <span class="share-stat-label">本周新增</span>
+          </div>
+          <div class="share-stat">
+            <span class="share-stat-num">${fanStats?.paidFans || 0}</span>
+            <span class="share-stat-label">付费粉丝</span>
+          </div>
+        </div>
+
+        <button class="btn-next" onclick="copyShareLink('${shareLink}')" style="width:100%;padding:12px 0;margin-top:12px;">
+          分享给好友
+        </button>
+      </div>`;
+
+    // 在用户资料页的报告列表后面追加共享区域
+    const profileContent = $('user-content');
+    if (profileContent) {
+      const shareDiv = document.createElement('div');
+      shareDiv.innerHTML = shareHtml;
+      profileContent.querySelector('div[style*="padding:20px"]')?.appendChild(shareDiv.firstElementChild);
+    }
+  }).catch(() => {});
+}
+
+window.copyShareLink = function(link) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(link).then(() => showToast('链接已复制，快去分享吧！')).catch(() => {});
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); showToast('链接已复制！');
+  }
+  track('share_link_copy', { label: currentUser?.openId || '' });
+};
+
+/**
+ * 页面加载时检测分享码
+ */
+function checkShareCode() {
+  const params = new URLSearchParams(window.location.search);
+  const shareCode = params.get('share');
+  if (!shareCode) return;
+
+  // 存到 localStorage 中（粉丝绑定用）
+  localStorage.setItem('share_referrer', shareCode);
+
+  // 如果用户已登录，直接绑定
+  if (currentUser && currentUser.openId && !currentUser.openId.startsWith('guest_')) {
+    fetch('/api/user/share/info?code=' + encodeURIComponent(shareCode)).then(r => r.json()).then(data => {
+      if (data.success && data.sharer) {
+        fetch('/api/user/fan/bind', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            hostOpenId: data.sharer.openId,
+            fanOpenId: currentUser.openId,
+            fanName: currentUser.nickName,
+          }),
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+  }
+
+  // 清除 URL 参数
+  const url = new URL(window.location);
+  url.searchParams.delete('share');
+  window.history.replaceState({}, '', url);
+}
+
+/**
+ * 在报告生成时关联分享码
+ */
+function bindShareOnReport(openId) {
+  const shareCode = localStorage.getItem('share_referrer');
+  if (!shareCode) return;
+  fetch('/api/user/share/info?code=' + encodeURIComponent(shareCode)).then(r => r.json()).then(data => {
+    if (data.success && data.sharer && data.sharer.openId !== openId) {
+      fetch('/api/user/fan/bind', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostOpenId: data.sharer.openId, fanOpenId: openId }),
+      }).catch(() => {});
+      fetch('/api/user/fan/action', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shareCode, action: 'report', meta: { fanOpenId: openId } }),
+      }).catch(() => {});
+    }
+  }).catch(() => {});
 }
 
 // 检查微信 OAuth 回调（登录用）
@@ -1733,7 +2227,7 @@ function getShareText() {
   if (t?.content?.description) lines.push(`🧠 天赋亮点：${t.content.description.replace(/<[^>]*>/g,'').substring(0, 80)}`);
   if (e?.content?.pathType) lines.push(`🎓 教育路径：${e.content.pathType}`);
   if (sk?.content?.level) lines.push(`⚠ 风险等级：${sk.content.level}`);
-  lines.push('', ` 复制链接查看完整报告：${getShareUrl()}`, `💬 加微信 ${CONTACT_WECHAT} 获取深度解读`, '━━━━━━━━━━━━━━━', '来「优势星测」，发现孩子的天赋密码！');
+  lines.push('', ` 复制链接查看完整报告：${getShareUrl()}`, `💬 加微信 ${CONTACT_WECHAT} 获取深度解读`, '━━━━━━━━━━━━━━━', '来「劲脑·天赋探测仪」，发现孩子的天赋密码！');
   return lines.join('\n');
 }
 
@@ -1756,7 +2250,7 @@ function generateShareImage() {
   for(let i=0;i<30;i++){ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,Math.random()*2+1,0,Math.PI*2);ctx.fill();}
   // 品牌
   ctx.fillStyle='#f0c040'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center';
-  ctx.fillText('⭐ 优势星测', W/2, 45);
+  ctx.fillText('⭐ 劲脑·天赋探测仪', W/2, 45);
   ctx.fillStyle='#fff'; ctx.font='bold 20px sans-serif';
   ctx.fillText(`${r.name||'宝贝'} 的星盘天赋解读`, W/2, 80);
   // 分隔线
@@ -1799,7 +2293,7 @@ function generateShareImage() {
   ctx.fillText(` 加微信 ${CONTACT_WECHAT} 获取完整深度报告`, W/2, y); y+=22;
   if(localStorage.getItem('star_ref')){ctx.fillStyle='#f0c040';ctx.fillText(`💝 好友推荐你来看`,W/2,y);y+=22;}
   ctx.fillStyle='rgba(139,143,189,0.5)'; ctx.font='12px sans-serif';
-  ctx.fillText('优势星测 · 发现孩子的天赋密码', W/2, y);
+  ctx.fillText('劲脑·天赋探测仪 · 发现孩子的天赋密码', W/2, y);
   return off.toDataURL('image/png');
 }
 
@@ -1951,7 +2445,7 @@ async function renderCommentSection(type) {
   container.id = 'comment-section';
 
   // 插入到 report 区域
-  const reportArea = type === 'star' ? $('report-content')?.parentElement : $('strength-result')?.parentElement;
+  const reportArea = type === 'star' ? $('report-content')?.parentElement : $('mbti-result')?.parentElement;
   if (!reportArea) return;
   // 移除旧的评论区域
   const old = document.getElementById('comment-section');
@@ -2088,17 +2582,15 @@ async function getDistConfig() {
 function renderDistributorRegister(container, uid) {
   getDistConfig().then(config => {
     const rate = Math.round((config.commissionRate || 0.3) * 100);
-    const premiumPrice = 9.9;
-    const commission = (premiumPrice * (config.commissionRate || 0.3)).toFixed(2);
     container.innerHTML = `
       <div class="dist-page">
         <div class="dist-header">
           <h2>💰 推广赚钱</h2>
-          <p>分享报告给好友，好友付费你拿佣金</p>
+          <p>分享报告给好友，轻松赚佣金</p>
         </div>
         <div class="dist-register-card">
           <h3>成为推广员</h3>
-          <p>每推荐一位好友购买深度版报告（¥9.9），你可获得 <strong style="color:#66bb6a;">${rate}% 佣金（¥${commission}）</strong>。<br>
+          <p>每推荐一位好友生成报告，你可获得 <strong style="color:#66bb6a;">最高 ¥3 佣金</strong>。<br>
           无需押金，随时提现（<strong style="color:#f59e0b;">最低 ¥${config.minWithdrawal || 10}</strong> 起提）。</p>
           <h3 style="margin-top:16px;">📝 填写信息</h3>
           <input class="dist-field" id="dist-name" placeholder="你的称呼（如：张妈妈）" maxlength="20" />
@@ -2244,7 +2736,7 @@ window.shareDistributorLink = () => {
   const el = document.querySelector('.dist-share-link');
   if (!el) return;
   const url = el.textContent;
-  const text = `🌟 来「优势星测」给孩子做一份专业的星盘天赋解读！\nAI 全面分析孩子的性格、天赋、学习模式和教育路径。\n\n 点开看看：${url}\n\n（这是我的推广链接，感谢你的支持！）`;
+  const text = `🌟 来「劲脑·天赋探测仪」给孩子做一份专业的星盘天赋解读！\nAI 全面分析孩子的性格、天赋、学习模式和教育路径。\n\n 点开看看：${url}\n\n（这是我的推广链接，感谢你的支持！）`;
   copyTextToClipboard(text);
   showToast('✅ 推广文案已复制，快去分享吧！');
 };

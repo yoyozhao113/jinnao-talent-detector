@@ -1135,3 +1135,99 @@ body {
 .admin-btn-approve { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
 .admin-btn-delete { background: rgba(248, 113, 113, 0.15); color: #f87171; }
 .admin-empty { text-align: center; color: #575a85; padding: 40px 0; font-size: 0.85rem; }
+
+/* ========== 留资弹窗 ========== */
+.lead-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(2, 4, 20, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.lead-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lead-overlay-box {
+  background: linear-gradient(145deg, #0f1338 0%, #1a1040 100%);
+  border: 1px solid #2a1f55;
+  border-radius: 20px;
+  padding: 32px 24px 28px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.lead-overlay-icon {
+  font-size: 2.8rem;
+  margin-bottom: 12px;
+}
+.lead-overlay-title {
+  font-size: 1.3rem;
+  color: #f0c040;
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+.lead-overlay-desc {
+  font-size: 0.9rem;
+  color: #b8b5d0;
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+.lead-overlay-desc strong {
+  color: #e8eaff;
+}
+.lead-overlay-form {
+  text-align: left;
+}
+.lead-overlay-field {
+  margin-bottom: 16px;
+}
+.lead-overlay-field label {
+  display: block;
+  font-size: 0.8rem;
+  color: #8b8fbd;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.lead-required {
+  color: #f87171;
+}
+.lead-overlay-field input {
+  width: 100%; padding: 13px 14px;
+  background: #0a0e27; border: 1.5px solid #1e2954;
+  border-radius: 10px; color: #e8eaff; font-size: 1rem; outline: none;
+  box-sizing: border-box;
+}
+.lead-overlay-field input:focus {
+  border-color: #f0c040;
+}
+.lead-overlay-field input::placeholder {
+  color: #475569;
+}
+.lead-overlay-tip {
+  font-size: 0.72rem;
+  color: #575a85;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.lead-overlay-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 1rem;
+}
+.lead-overlay-skip {
+  display: inline-block;
+  margin-top: 12px;
+  background: none;
+  border: none;
+  color: #475569;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lead-overlay-skip:hover {
+  color: #8b8fbd;
+}

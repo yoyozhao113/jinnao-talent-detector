@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>优势星测 - 管理后台</title>
+  <title>劲脑·天赋探测仪 - 管理后台</title>
   <style>
     /* ========== Reset & Base (内联，生产自包含) ========== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -62,6 +62,7 @@
     .admin-btn-approve { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
     .admin-btn-delete { background: rgba(248, 113, 113, 0.15); color: #f87171; }
     .admin-empty { text-align: center; color: #575a85; padding: 40px 0; font-size: 0.85rem; }
+    .admin-loading { text-align: center; color: #575a85; padding: 40px 0; font-size: 0.85rem; }
 
     /* ========== 分销管理样式 ========== */
     .admin-tab.dist { color: #f59e0b; }
@@ -605,12 +606,111 @@
         </div>
       `;
     }
+
+	    // 成绩检测记录
+	    function loadGradeAssessments() {
+	      const key = localStorage.getItem('admin_key') || document.getElementById('admin-key')?.value || '';
+	      if (!key) return;
+	      const area = document.getElementById('grade-content');
+	      area.innerHTML = '<div class="admin-loading">加载中...</div>';
+	      fetch('/api/grade-assessment/list?key=' + encodeURIComponent(key))
+	        .then(r => r.json())
+	        .then(data => {
+	          if (!data.success) { area.innerHTML = '<div class="admin-empty">加载失败</div>'; return; }
+	          if (!data.records || data.records.length === 0) { area.innerHTML = '<div class="admin-empty">暂无成绩检测记录</div>'; return; }
+	          let html = '<div class="admin-stats"><div class="admin-stat"><div class="admin-stat-num">' + data.records.length + '</div><div class="admin-stat-label">总线索</div></div></div>';
+	          data.records.forEach(r => {
+	            const subjects = r.subjects ? r.subjects.join('、') : '';
+	            const scoresHtml = r.scores ? Object.entries(r.scores).map(function(e) { return e[0] + ':' + e[1]; }).join(' | ') : '';
+	            const distTag = r.distributor ? '<span style="color:#f59e0b;font-size:0.72rem;">🔗 ' + r.distributor + '</span>' : '';
+	            const time = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '';
+	            html += '<div class="admin-comment-item">'
+	              + '<div class="admin-comment-meta">'
+	              + '<span class="admin-comment-name">📱 ' + r.wechat + '</span>'
+	              + '<span style="color:#66bb6a;font-size:0.78rem;">' + r.grade + '</span>'
+	              + '</div>'
+	              + '<div style="color:#8b8fbd;font-size:0.82rem;margin-bottom:6px;">📍 ' + (r.province || '') + ' | 📚 ' + subjects + '</div>'
+	              + '<div style="color:#575a85;font-size:0.78rem;margin-bottom:4px;">' + scoresHtml + '</div>'
+	              + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">'
+	              + '<span style="color:#575a85;font-size:0.7rem;">' + time + '</span>'
+	              + distTag
+	              + '</div>'
+	              + (r.studentName ? '<div style="color:#8b8fbd;font-size:0.78rem;margin-top:4px;">👤 ' + r.studentName + '</div>' : '')
+	              + '</div>';
+	          });
+	          area.innerHTML = html;
+	        })
+	        .catch(function() { area.innerHTML = '<div class="admin-empty">加载失败</div>'; });
+	    }
+	  
+    // ========== 用户测试记录 ==========
+    async function loadUserRecords() {
+      const key = localStorage.getItem('admin_key') || document.getElementById('admin-key')?.value || '';
+      if (!key) return;
+      const area = document.getElementById('records-content');
+      area.innerHTML = '<div class="admin-loading">加载中...</div>';
+      try {
+        const res = await fetch('/api/user-records/list?key=' + encodeURIComponent(key));
+        const data = await res.json();
+        if (!data.success || !data.records || data.records.length === 0) {
+          area.innerHTML = '<div class="admin-empty">暂无用户记录</div>';
+          return;
+        }
+        let stats = { star: 0, grade: 0, mbti: 0 };
+        data.records.forEach(r => { if (stats[r.type] !== undefined) stats[r.type]++; });
+        let html = '<div class="admin-stats">'
+          + '<div class="admin-stat"><div class="admin-stat-num">' + data.records.length + '</div><div class="admin-stat-label">总记录</div></div>'
+          + '<div class="admin-stat"><div class="admin-stat-num">' + stats.star + '</div><div class="admin-stat-label">星盘解读</div></div>'
+          + '<div class="admin-stat"><div class="admin-stat-num">' + stats.grade + '</div><div class="admin-stat-label">成绩检测</div></div>'
+          + '</div>';
+        data.records.forEach(r => {
+          const time = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-CN') : '';
+          const distTag = r.distributor ? '<span style="color:#f59e0b;font-size:0.72rem;">🔗 ' + r.distributor + '</span>' : '';
+          if (r.type === 'star') {
+            html += '<div class="admin-comment-item">'
+              + '<div class="admin-comment-meta">'
+              + '<span class="admin-comment-name">🌟 星盘 · ' + escHtml(r.name || '匿名') + '</span>'
+              + '<span style="color:#818cf8;font-size:0.78rem;">' + time + '</span>'
+              + '</div>'
+              + '<div style="color:#8b8fbd;font-size:0.82rem;margin-bottom:4px;">📅 ' + (r.birthDate || '') + ' | ' + (r.city || '未选择城市') + '</div>'
+              + '<div style="font-size:0.78rem;color:#575a85;">'
+              + (r.budget ? '💰 ' + r.budget : '') + (r.budget && r.grade ? ' | ' : '') + (r.grade ? '📊 ' + r.grade : '')
+              + '</div>'
+              + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">'
+              + '<span style="color:#575a85;font-size:0.7rem;">' + time + '</span>'
+              + distTag
+              + '</div>'
+              + '</div>';
+          } else if (r.type === 'grade') {
+            const subjects = r.subjects ? r.subjects.join('、') : '';
+            const scoresHtml = r.scores ? Object.entries(r.scores).map(function(e) { return e[0] + ':' + e[1]; }).join(' | ') : '';
+            html += '<div class="admin-comment-item">'
+              + '<div class="admin-comment-meta">'
+              + '<span class="admin-comment-name">📱 成绩检测 · ' + escHtml(r.wechat || '') + '</span>'
+              + '<span style="color:#66bb6a;font-size:0.78rem;">' + (r.grade || '') + '</span>'
+              + '</div>'
+              + '<div style="color:#8b8fbd;font-size:0.82rem;margin-bottom:6px;">📍 ' + (r.province || '') + ' | 📚 ' + subjects + '</div>'
+              + '<div style="color:#575a85;font-size:0.78rem;margin-bottom:4px;">' + scoresHtml + '</div>'
+              + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">'
+              + '<span style="color:#575a85;font-size:0.7rem;">' + time + '</span>'
+              + distTag
+              + '</div>'
+              + (r.studentName ? '<div style="color:#8b8fbd;font-size:0.78rem;margin-top:4px;">👤 ' + escHtml(r.studentName) + '</div>' : '')
+              + '</div>';
+          }
+        });
+        area.innerHTML = html;
+      } catch(e) {
+        area.innerHTML = '<div class="admin-empty">加载失败</div>';
+      }
+    }
+
   </script>
 </head>
 <body>
   <div class="admin-page">
     <div class="admin-header">
-      <h1>🔐 优势星测管理后台</h1>
+      <h1>🔐 劲脑·天赋探测仪管理后台</h1>
     </div>
 
     <div id="login-form" class="admin-login">
@@ -627,6 +727,9 @@
         <span class="admin-tab" data-tab="all" onclick="setTab('all')">📋 全部</span>
         <span class="admin-tab dist" data-tab="dist" onclick="setTab('dist')">💰 分销</span>
         <span class="admin-tab" data-tab="tracking" onclick="setTab('tracking')">📊 埋点</span>
+	        <span class="admin-tab" data-tab="grade" onclick="setTab('grade')">📝 成绩检测</span>
+	        <span class="admin-tab" data-tab="records" onclick="setTab('records')">👤 用户记录</span>
+	        <span class="admin-tab" data-tab="records" onclick="setTab('records')">👤 用户记录</span>
       </div>
 
       <!-- 评论管理 -->
@@ -644,6 +747,12 @@
 
       <!-- 埋点统计 -->
       <div id="tracking-content" style="display:none;"></div>
+
+	      <!-- 成绩检测记录 -->
+	      <div id="grade-content" style="display:none;"></div>
+
+	      <!-- 用户测试记录 -->
+	      <div id="records-content" style="display:none;"></div>
     </div>
   </div>
   <script>
@@ -654,10 +763,16 @@
       const commentArea = document.getElementById('comment-area');
       const distArea = document.getElementById('dist-admin-content');
       const trackArea = document.getElementById('tracking-content');
-      commentArea.style.display = (tab === 'dist' || tab === 'tracking') ? 'none' : 'block';
+      commentArea.style.display = (tab === 'dist' || tab === 'tracking' || tab === 'grade' || tab === 'records') ? 'none' : 'block';
       distArea.style.display = tab === 'dist' ? 'block' : 'none';
       trackArea.style.display = tab === 'tracking' ? 'block' : 'none';
+	      const recordsArea = document.getElementById('records-content');
+	      recordsArea.style.display = tab === 'records' ? 'block' : 'none';
+	      const gradeArea = document.getElementById('grade-content');
+	      gradeArea.style.display = tab === 'grade' ? 'block' : 'none';
       if (tab === 'tracking') loadTrackingStats();
+	      if (tab === 'grade') loadGradeAssessments();
+	      if (tab === 'records') loadUserRecords();
     };
   </script>
 </body>
