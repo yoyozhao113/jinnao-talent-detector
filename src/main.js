@@ -822,7 +822,7 @@ window.varkSelect = (val) => {
   const q = VARK_QUESTIONS[varkState.current];
   varkState.answers[q.id] = val;
   document.querySelectorAll('#vark-options .vark-opt').forEach(el => {
-    el.classList.toggle('selected', el.dataset?.key === val);
+    el.classList.toggle('selected', el.dataset?.vark === val);
   });
 };
 
@@ -977,7 +977,7 @@ window.efficacySelect = (val) => {
   const q = EFFICACY_QUESTIONS[efficacyState.current];
   efficacyState.answers[q.id] = val;
   document.querySelectorAll('#efficacy-options .efficacy-opt').forEach(el => {
-    el.classList.toggle('selected', parseInt(el.getAttribute('onclick')?.match(/\d+/)?.[0]) === val);
+    el.classList.toggle('selected', parseInt(el.dataset.efficacy) === val);
   });
 };
 
