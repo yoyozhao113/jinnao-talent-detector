@@ -1565,6 +1565,21 @@ h1, h2, h3, .home-logo {
   color: #C4B5FD;
   font-weight: 600;
 }
+.talent-prompt-cta {
+  font-size: 0.85rem;
+  color: #CBD5E1;
+  line-height: 1.7;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.15);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.talent-prompt-cta:hover {
+  background: rgba(251,191,36,0.15);
+}
 .talent-prompt-btn {
   padding: 10px 22px;
   border: none;
@@ -2080,3 +2095,98 @@ h1, h2, h3, .home-logo {
   line-height: 1.5;
 }
 .grade-done-detail p:last-child { margin-bottom: 0; }
+
+/* ========== 邀请助力解锁墙 ========== */
+.unlock-wall {
+  max-width: 600px;
+  margin: 24px auto 0;
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(240,192,64,0.10), rgba(139,92,246,0.08));
+  border: 1px solid rgba(240,192,64,0.28);
+  padding: 24px 22px;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+.unlock-wall::before {
+  content: '';
+  position: absolute;
+  top: -50px; right: -40px;
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(240,192,64,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.unlock-wall-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  animation: unlock-bounce 2s ease-in-out infinite;
+}
+@keyframes unlock-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.unlock-wall-body { position: relative; }
+.unlock-wall-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f0c040;
+  margin: 0 0 6px;
+}
+.unlock-wall-desc {
+  color: #aab0d8;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.unlock-wall-desc strong { color: #fff; }
+.unlock-progress {
+  margin: 0 0 18px;
+}
+.unlock-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.unlock-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f0c040, #f59e0b);
+  transition: width 0.6s ease;
+  box-shadow: 0 0 12px rgba(240,192,64,0.5);
+}
+.unlock-progress-text {
+  margin-top: 8px;
+  color: #8b8fbd;
+  font-size: 0.85rem;
+}
+.unlock-progress-text strong { color: #f0c040; font-weight: 700; }
+.unlock-wall-btn {
+  width: 100%;
+  padding: 13px 0;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #14152c;
+  background: linear-gradient(135deg, #f0c040, #fbbf24);
+  box-shadow: 0 4px 18px rgba(240,192,64,0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.unlock-wall-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(240,192,64,0.45);
+}
+.unlock-wall-btn:active { transform: translateY(0) scale(0.99); }
+.unlock-wall-alt {
+  margin-top: 12px;
+  color: #8b8fbd;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+}
+.unlock-wall-alt:hover { color: #f0c040; }
+.unlock-wall.unlocked .unlock-wall-icon { animation: none; }
+.unlock-wall.unlocked .unlock-wall-btn { opacity: 0.75; cursor: default; }

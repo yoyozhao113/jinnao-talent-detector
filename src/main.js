@@ -1,10 +1,11 @@
 /**
- * 劲脑·天赋探测仪 - 主入口
+ * 天赋探测仪 - 主入口
  * Step 1: 首页 → Step 2: 填信息/答题 → Step 3: 报告
  */
 import { CITIES } from './data/cities.js';
 import { drawChartWheel } from './chart-wheel.mjs';
 import track from './tracker.mjs';
+import qrcode from 'qrcode-generator';
 import { MBTI_QUESTIONS, calculateMBTI } from './mbti-data.js';
 import { getMbtiAstroCross } from './mbti-astro.js';
 import { MBTI_EDUCATION } from './mbti-edu.js';
@@ -15,6 +16,11 @@ import { EFFICACY_QUESTIONS, LIKERT_5, calculateEfficacy } from './efficacy-data
 let currentTestType = null;   // 'star' | 'mbti'
 let currentReport = null;
 let currentVersion = 'free';
+
+// 邀请助力解锁状态（未加载时为 null）
+let _assistAccess = null;
+// 免费版需要助力解锁的板块（免费只展示其余板块作为钩子）
+const LOCKED_SECTIONS = ['houses', 'aspects', 'resource', 'mercury', 'talent', 'emotion', 'psychology', 'parenting', 'edu_path', 'edu_plan', 'major'];
 
 // 星盘表单暂存数据（预算页使用）
 let starFormData = null;
@@ -363,9 +369,24 @@ async function doStarReport(formData, budget, grade) {
     currentReport = data;
     localStorage.setItem('astro_chart', JSON.stringify(data.chart));
 
-    // 先保存报告数据，弹出留资窗
+    // 检查已有 OpenID 或走静默 OAuth
     _pendingReportData = { report: data.report, chart: data.chart, name: formData.name, version: formData.version };
-    showLeadCapture();
+
+    // 好友从分享链接进入：帮分享者记一次助力（服务端按 hostKey 去重）
+    const refKey = localStorage.getItem('star_ref') || '';
+    if (refKey && refKey !== getHostKey()) {
+      fetch('/api/assist/record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostKey: refKey, helperKey: getHostKey(), helperName: formData.name || '' })
+      }).then(r => r.json()).then(d => {
+        if (d && d.success && !d.deduped) {
+          showToast(d.justUnlocked ? '🎉 你的助力让好友解锁了完整报告！' : '✅ 已为好友助力，解锁进度 +1');
+          track('assist_recorded', { page: 'report', meta: { justUnlocked: !!d.justUnlocked } });
+        }
+      }).catch(() => {});
+    }
+
+    tryLeadCaptureOrDirectShow();
   } catch (err) {
     showToast('计算失败：' + err.message);
     showPage('form');
@@ -383,7 +404,7 @@ function showLeadCapture() {
       <div class="lead-overlay-icon">🌟</div>
       <h3 class="lead-overlay-title">报告已生成</h3>
       <p class="lead-overlay-desc">
-        填写微信号，解锁 <strong>${_pendingReportData.name || '宝贝'}</strong> 的<br>完整星盘解读报告
+        填写微信号，解锁 <strong>${_pendingReportData?.name || '宝贝'}</strong> 的<br>完整星盘解读报告
       </p>
       <div class="lead-overlay-form">
         <div class="lead-overlay-field">
@@ -426,6 +447,15 @@ window.submitLeadCapture = async function() {
     });
   } catch { /* 静默处理，不影响用户体验 */ }
 
+  // 填微信视为已解锁完整版
+  try {
+    await fetch('/api/assist/unlock', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hostKey: getHostKey(), method: 'lead' })
+    });
+  } catch { /* 静默 */ }
+  _assistAccess = { ...(_assistAccess || { count: 0, threshold: 3 }), unlocked: true };
+
   if (btn) { btn.disabled = false; btn.textContent = '✓ 领取完整报告'; }
   finishStarReport();
 };
@@ -451,7 +481,85 @@ function finishStarReport() {
   renderStep3();
   track('report_generated', { page: 'report', label: version, meta: { type: currentTestType } });
   autoSaveReport('star', name, chart, report, version);
-  _pendingReportData = null;
+  // 保留 _pendingReportData，供解锁墙"填微信解锁"复用
+  if (version === 'free') refreshAssistState(report);
+}
+
+// ========== 无感留资 ==========
+
+function tryLeadCaptureOrDirectShow() {
+  // 已有 OpenID（之前通过微信登录过）→ 直接出报告
+  if (wechatOpenId && !wechatOpenId.startsWith('guest_')) {
+    silentSaveLead(wechatOpenId);
+    finishStarReport();
+    return;
+  }
+
+
+  // 微信浏览器 → 静默 OAuth 拿 OpenID
+  if (/MicroMessenger/i.test(navigator.userAgent) && WECHAT_APPID) {
+    const pendingData = {
+      ..._pendingReportData,
+      _testType: currentTestType
+    };
+    localStorage.setItem('pending_report', JSON.stringify(pendingData));
+    const currentUrl = window.location.href.split('?')[0].split('#')[0];
+    const redirectUri = encodeURIComponent(currentUrl);
+    const oauthUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${WECHAT_APPID}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&state=get_report#wechat_redirect`;
+    window.location.href = oauthUrl;
+    return;
+  }
+
+  // 非微信环境 → 直接展示免费报告，解锁墙内提供"填微信解锁"备选
+  finishStarReport();
+}
+
+function silentSaveLead(openId) {
+  const name = _pendingReportData?.name || '';
+  fetch('/api/lead', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ openId, name, type: 'star' })
+  }).catch(() => {});
+}
+
+// 处理静默 OAuth 回调（报告用）
+async function handleReportOAuth() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  if (!code || state !== 'get_report') return;
+
+  // 清理 URL
+  const url = new URL(window.location);
+  url.searchParams.delete('code');
+  url.searchParams.delete('state');
+  window.history.replaceState({}, '', url);
+
+  try {
+    const resp = await fetch(`/api/wechat/oauth?code=${encodeURIComponent(code)}`);
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || '登录失败');
+
+    wechatOpenId = data.openId;
+    localStorage.setItem('wechat_openid', data.openId);
+
+    // 恢复之前保存的报告数据
+    const pending = localStorage.getItem('pending_report');
+    if (pending) {
+      const pendingData = JSON.parse(pending);
+      // 恢复 currentTestType（页面刷新后变 null，否则报告区不显示）
+      if (pendingData._testType) currentTestType = pendingData._testType;
+      delete pendingData._testType;
+      _pendingReportData = pendingData;
+      localStorage.removeItem('pending_report');
+      silentSaveLead(data.openId);
+      finishStarReport();
+    }
+  } catch (err) {
+    console.error('[报告OAuth]', err.message);
+    showToast('获取信息失败，请重试');
+    showPage('home');
+  }
 }
 
 // ================================================================
@@ -1104,16 +1212,6 @@ function getEfficacyAdvice(result) {
 //  引导加微信
 // ================================================================
 
-function renderLeadBox() {
-  return `
-    <div class="lead-box">
-      <p> <strong>加微信获取完整报告</strong></p>
-      <p style="font-size:0.8rem;margin-bottom:8px;">复制微信号添加，发送完整深度报告</p>
-      <div class="lead-wechat" onclick="copyWechat()">${CONTACT_WECHAT}</div>
-      <button class="lead-btn" onclick="copyWechat()"> 复制微信号</button>
-    </div>`;
-}
-
 window.copyWechat = () => {
   const t = CONTACT_WECHAT;
   if (navigator.clipboard) { navigator.clipboard.writeText(t).then(() => showToast('已复制')).catch(() => {}); }
@@ -1137,7 +1235,7 @@ function showLoading(text, hint) {
 
 function renderReport(report, version) {
   const badge = $('report-badge');
-  badge.textContent = '劲脑·天赋探测仪';
+  badge.textContent = '天赋探测仪';
   badge.className = `report-badge ${version}`;
   $('report-title').textContent = `${report.name || '宝贝'}的专属星盘解读`;
   const summary = report.chartSummary || {};
@@ -1149,17 +1247,22 @@ function renderReport(report, version) {
   html += `<div class="chart-pill"><div class="pill-label">上升</div><div class="pill-value">${summary.rising ? summary.rising.replace(/[°′].*/, '') : '--'}</div></div>`;
   html += `</div>`;
 
+  // 免费版只展示钩子板块，深度板块需邀请助力解锁
+  const unlocked = version !== 'free' || _assistAccess?.unlocked === true;
   (report.sections || []).forEach(section => {
+    if (!unlocked && LOCKED_SECTIONS.includes(section.id)) return;
     html += renderSection(section);
   });
+
+  // 未解锁：追加助力解锁墙
+  if (version === 'free' && !unlocked) {
+    html += renderUnlockWall(_assistAccess || { count: 0, threshold: 3, unlocked: false });
+  }
   $('report-content').innerHTML = html;
 
   const footer = $('report-footer');
-  if (report.footer) {
-    footer.innerHTML = `<div class="report-footer-inner">${report.footer.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}</div>`;
-  } else {
-    footer.innerHTML = renderLeadBox();
-  }
+  // 合并到 talent prompt，此处不再单独显示
+  footer.innerHTML = '';
 
   renderCommentSection('star');
   trackReportSectionViews();
@@ -1574,7 +1677,8 @@ function renderTalentPrompt() {
     <div class="talent-prompt-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2zm5 8h-2v-3h2v3zm0-5h-2V7h2v3z"/></svg></div>
     <div class="talent-prompt-content">
       <div class="talent-prompt-title">想更精准了解孩子的大脑优势？</div>
-      <div class="talent-prompt-desc">五者天赋测评从五行脑科学角度，分析孩子的 <strong>思（木）· 赢（火）· 德（土）· 行（金）· 学（水）</strong> 五种天赋类型，给予针对性后天大脑培养建议。</div>
+      <div class="talent-prompt-desc">刚才的星盘测评源自心理学大师卡尔·荣格的类型理论，揭示的是孩子的<strong>"天生倾向"</strong>。而五者天赋测评则揭示<strong>大脑左右脑特点</strong>与<strong>性格特质</strong>——两者结合，我们可以给出一整套<strong>提分提效的训练解决方案</strong>。</div>
+      <div class="talent-prompt-cta">加微信 <strong style="color:#FBBF24;" onclick="copyWechat()">yoyozhao1341</strong> 领取五者天赋测评，获取更完整的成长地图</div>
       <button class="talent-prompt-btn" onclick="showTalentConsult()">了解五者天赋 →</button>
     </div>
   `;
@@ -1817,11 +1921,11 @@ function renderProfileHTML(reports, orders, count, paidCount, shareCode, shareLi
         </div>
 
         <!-- 公众号宣传位 -->
-        <div class="profile-oa-banner" onclick="copyOaText()">
+        <div class="profile-oa-banner" onclick="followOA()">
           <div class="profile-oa-icon">📢</div>
           <div class="profile-oa-content">
-            <div class="profile-oa-title">关注公众号 · 获取更多干货</div>
-            <div class="profile-oa-desc">星盘知识 · 教育方法 · 天赋培养</div>
+            <div class="profile-oa-title">关注「星宿家」公众号</div>
+            <div class="profile-oa-desc">获取更多星盘知识 · 教育方法 · 天赋培养</div>
           </div>
           <div class="profile-oa-arrow">›</div>
         </div>
@@ -1894,11 +1998,11 @@ function showAboutModal() {
       </div>
       <div class="modal-body" style="text-align:center;">
         <div style="font-size:3rem;margin-bottom:10px;">✦</div>
-        <h3 style="color:#E2E8F0;font-size:1.1rem;margin-bottom:4px;">劲脑·天赋探测仪</h3>
+        <h3 style="color:#E2E8F0;font-size:1.1rem;margin-bottom:4px;">天赋探测仪</h3>
         <p style="color:#64748B;font-size:0.8rem;margin-bottom:16px;">v2.0.0</p>
         <div style="background:#060A1A;border-radius:10px;padding:14px;text-align:left;line-height:1.8;">
           <p style="color:#94A3B8;font-size:0.85rem;">
-            劲脑·天赋探测仪是一款基于AI的亲子天赋解读工具，融合星盘学、MBTI人格理论与五者天赋体系，帮助家长发现孩子的天生优势与教育方向。
+            天赋探测仪是一款基于AI的亲子天赋解读工具，融合星盘学、MBTI人格理论与五者天赋体系，帮助家长发现孩子的天生优势与教育方向。
           </p>
         </div>
         <p style="color:#475569;font-size:0.75rem;margin-top:16px;">
@@ -1910,16 +2014,55 @@ function showAboutModal() {
   document.body.appendChild(overlay);
 }
 
-// 复制公众号文案
-function copyOaText() {
-  const text = '关注「劲脑·天赋探测仪」公众号，获取星盘知识、教育方法、天赋培养等干货内容。';
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(() => showToast('公众号信息已复制')).catch(() => {});
-  } else {
+// 星宿家公众号相关
+const OA_BIZ = 'Mzg4MTkzMDk2OA==';  // 公众号 __biz 参数，填后可直接跳转主页
+const OA_QR_IMG = '/assets/微信搜一搜 星宿家.png'; // 公众号二维码图片路径，填后弹窗显示二维码
+
+// 关注公众号
+window.followOA = function() {
+  // 优先跳转公众号主页（需要 __biz）
+  if (OA_BIZ) {
+    const url = `https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=${OA_BIZ}#wechat_redirect`;
+    window.open(url, '_blank');
+    return;
+  }
+
+  // 有二维码图片 → 弹窗展示
+  if (OA_QR_IMG) {
+    showOAModal();
+    return;
+  }
+
+  // 兜底：复制公众号名称
+  copyText('星宿家');
+  showToast('已复制，请在微信搜索「星宿家」关注');
+};
+
+// 弹窗展示公众号二维码
+function showOAModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box" style="max-width:300px;text-align:center;">
+      <div class="modal-header">
+        <span>📢 关注星宿家</span>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:20px;">
+        <img src="${OA_QR_IMG}" alt="星宿家公众号二维码" style="width:200px;height:200px;border-radius:8px;margin-bottom:12px;">
+        <p style="color:#64748B;font-size:0.85rem;">长按识别二维码关注</p>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function copyText(text) {
+  if (navigator.clipboard) { navigator.clipboard.writeText(text).catch(() => {}); }
+  else {
     const ta = document.createElement('textarea');
     ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta); showToast('公众号信息已复制');
+    document.body.removeChild(ta);
   }
 }
 
@@ -1969,6 +2112,7 @@ window.viewUserReport = async function(reportId) {
           setTimeout(() => drawChartWheel('chart-wheel', r.chartData), 100);
         }
         renderStep3();
+        if (r.version === 'free') refreshAssistState(r.reportData);
       }
     }
   } catch { showToast('加载失败'); }
@@ -2175,20 +2319,29 @@ function createTalentModal() {
       <button class="aspect-modal-close" onclick="hideTalentModal()">✕</button>
     </div>
     <div class="talent-modal-body">
-      <p class="talent-modal-desc">五者天赋模型基于五行理论，将孩子分为 <strong>思者（木）、赢者（火）、德者（土）、行者（金）、学者（水）</strong> 五种天赋类型，每种类型对应不同的脑优势和学习模式。</p>
+      <p class="talent-modal-desc">领取五者天赋测评，测出孩子的五者天赋 —— <strong>思 / 赢 / 德 / 行 / 学</strong>，他到底属于哪一种？与星盘解读交叉验证，获得更完整的成长地图。</p>
       <div class="talent-types">
-        <div class="talent-type-item"><span class="tt-wood">◆ 思者（木）</span> 右脑直觉型 · 巧学代替苦学</div>
-        <div class="talent-type-item"><span class="tt-fire">◈ 赢者（火）</span> 右脑感受型 · 荣誉感驱动</div>
-        <div class="talent-type-item"><span class="tt-earth">● 德者（土）</span> 左脑秩序型 · 复读机式教育</div>
-        <div class="talent-type-item"><span class="tt-metal">◇ 行者（金）</span> 左脑逻辑型 · 兴趣驱动专才</div>
-        <div class="talent-type-item"><span class="tt-water">○ 学者（水）</span> 全脑优势型 · 自驱力极强</div>
+        <div class="talent-type-item"><span class="tt-wood">◆ 思者</span> 右脑直觉型 · 巧学代替苦学</div>
+        <div class="talent-type-item"><span class="tt-fire">◈ 赢者</span> 右脑感受型 · 荣誉感驱动</div>
+        <div class="talent-type-item"><span class="tt-earth">● 德者</span> 左脑秩序型 · 复读机式教育</div>
+        <div class="talent-type-item"><span class="tt-metal">◇ 行者</span> 左脑逻辑型 · 兴趣驱动专才</div>
+        <div class="talent-type-item"><span class="tt-water">○ 学者</span> 全脑优势型 · 自驱力极强</div>
       </div>
-      <p class="talent-modal-cta">想了解孩子的五者天赋类型？<br>加微信 <strong class="talent-wechat" onclick="copyWechat()">yoyozhao1341</strong> 咨询</p>
+      <p class="talent-modal-cta">加微信 <strong class="talent-wechat" onclick="copyWechat()">yoyozhao1341</strong> 领取五者天赋测评</p>
       <button class="lead-btn" onclick="copyWechat()"> 复制微信号</button>
     </div>`;
   document.body.appendChild(dialog);
+  // 点击遮罩关闭
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close();
+  });
   return dialog;
 }
+
+window.hideTalentModal = () => {
+  const dialog = document.getElementById('talent-modal');
+  if (dialog) dialog.close();
+};
 
 // ========== 分享与邀约系统 ==========
 
@@ -2205,9 +2358,92 @@ function getRefCode() {
   return uid;
 }
 
+// 助力/分享身份标识：优先微信 openId，无则用本地 uid
+function getHostKey() {
+  if (wechatOpenId && !wechatOpenId.startsWith('guest_')) return 'o:' + wechatOpenId;
+  return 'u:' + getRefCode();
+}
+
 function getShareUrl() {
   const base = location.href.split('?')[0].split('#')[0];
-  return `${base}?ref=${getRefCode()}`;
+  return `${base}?ref=${encodeURIComponent(getHostKey())}`;
+}
+
+// ========== 邀请助力解锁 ==========
+
+// 渲染解锁墙（未解锁时追加在报告底部）
+function renderUnlockWall(status) {
+  const threshold = status.threshold || 3;
+  const count = status.count || 0;
+  const pct = Math.min(100, Math.round(count / threshold * 100));
+  return `
+    <div class="unlock-wall" id="unlock-wall">
+      <div class="unlock-wall-icon">🔓</div>
+      <div class="unlock-wall-body">
+        <div class="unlock-wall-title">解锁完整版报告</div>
+        <div class="unlock-wall-desc">邀请 <strong>${threshold}</strong> 位好友完成测试，即可免费解锁全部 ${LOCKED_SECTIONS.length} 个深度解读板块</div>
+        <div class="unlock-progress">
+          <div class="unlock-progress-bar"><div class="unlock-progress-fill" id="unlock-progress-fill" style="width:${pct}%"></div></div>
+          <div class="unlock-progress-text" id="unlock-progress-text">已邀请 <strong>${count}</strong> / ${threshold} 人</div>
+        </div>
+        <button class="unlock-wall-btn" onclick="unlockInvite()">📤 邀请好友助力</button>
+        <div class="unlock-wall-alt" onclick="unlockByWechat()">或填写微信，顾问直接发放完整版</div>
+      </div>
+    </div>`;
+}
+
+// 点击邀请好友 → 打开分享面板（含二维码海报）
+window.unlockInvite = () => {
+  track('click_unlock_invite', { page: 'report' });
+  shareReport();
+};
+
+// 备选：填微信直接解锁
+window.unlockByWechat = () => {
+  track('click_unlock_wechat', { page: 'report' });
+  showLeadCapture();
+};
+
+// 更新解锁墙进度（不重渲染报告）
+function updateUnlockWall(status) {
+  const wall = document.getElementById('unlock-wall');
+  const fill = document.getElementById('unlock-progress-fill');
+  const text = document.getElementById('unlock-progress-text');
+  if (status.unlocked) {
+    const anyWall = document.getElementById('unlock-wall');
+    if (anyWall) { anyWall.classList.add('unlocked'); anyWall.querySelector('.unlock-wall-btn').textContent = '✅ 已解锁，快去分享吧'; }
+    return;
+  }
+  if (wall && fill && text) {
+    const pct = Math.min(100, Math.round(status.count / status.threshold * 100));
+    fill.style.width = pct + '%';
+    text.innerHTML = `已邀请 <strong>${status.count}</strong> / ${status.threshold} 人`;
+  }
+}
+
+// 报告生成后刷新解锁状态；若已解锁则重渲染完整报告
+async function refreshAssistState(report) {
+  const hostKey = getHostKey();
+  try {
+    const [cfgRes, statusRes] = await Promise.all([
+      fetch('/api/assist/config').then(r => r.json()).catch(() => ({})),
+      fetch(`/api/assist/status?key=${encodeURIComponent(hostKey)}`).then(r => r.json()).catch(() => ({})),
+    ]);
+    const cfg = cfgRes.config || { unlockThreshold: 3 };
+    const status = statusRes.status || { count: 0, threshold: cfg.unlockThreshold, unlocked: false };
+    if (!status.threshold) status.threshold = cfg.unlockThreshold;
+
+    const prevUnlocked = _assistAccess?.unlocked;
+    _assistAccess = status;
+
+    if (status.unlocked && !prevUnlocked) {
+      renderReport(report, 'free');
+      showToast('🎉 已解锁完整报告，快去分享给好友吧！');
+      track('unlock_success', { page: 'report', method: status.unlockedBy || 'assist' });
+    } else {
+      updateUnlockWall(status);
+    }
+  } catch (e) { console.warn('[助力] 状态刷新失败:', e); }
 }
 
 function getShareText() {
@@ -2227,7 +2463,7 @@ function getShareText() {
   if (t?.content?.description) lines.push(`🧠 天赋亮点：${t.content.description.replace(/<[^>]*>/g,'').substring(0, 80)}`);
   if (e?.content?.pathType) lines.push(`🎓 教育路径：${e.content.pathType}`);
   if (sk?.content?.level) lines.push(`⚠ 风险等级：${sk.content.level}`);
-  lines.push('', ` 复制链接查看完整报告：${getShareUrl()}`, `💬 加微信 ${CONTACT_WECHAT} 获取深度解读`, '━━━━━━━━━━━━━━━', '来「劲脑·天赋探测仪」，发现孩子的天赋密码！');
+  lines.push('', ` 复制链接查看完整报告：${getShareUrl()}`, `💬 加微信 ${CONTACT_WECHAT} 获取深度解读`, '━━━━━━━━━━━━━━━', '来「天赋探测仪」，发现孩子的天赋密码！');
   return lines.join('\n');
 }
 
@@ -2250,7 +2486,7 @@ function generateShareImage() {
   for(let i=0;i<30;i++){ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,Math.random()*2+1,0,Math.PI*2);ctx.fill();}
   // 品牌
   ctx.fillStyle='#f0c040'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center';
-  ctx.fillText('⭐ 劲脑·天赋探测仪', W/2, 45);
+  ctx.fillText('⭐ 天赋探测仪', W/2, 45);
   ctx.fillStyle='#fff'; ctx.font='bold 20px sans-serif';
   ctx.fillText(`${r.name||'宝贝'} 的星盘天赋解读`, W/2, 80);
   // 分隔线
@@ -2286,14 +2522,40 @@ function generateShareImage() {
   if(tc){ctx.fillText(`🧠 ${tc.substring(0,84)}`,30,y);y+=20;}
   const ec = f('edu_path')?.content?.pathType;
   if(ec) ctx.fillText(`🎓 ${ec}`,30,y);
-  // 底部
-  y = H-110;
-  ctx.strokeStyle='rgba(240,192,64,0.25)'; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(W-30,y); ctx.stroke(); y+=16;
-  ctx.textAlign='center'; ctx.font='14px sans-serif'; ctx.fillStyle='#8b8fbd';
-  ctx.fillText(` 加微信 ${CONTACT_WECHAT} 获取完整深度报告`, W/2, y); y+=22;
-  if(localStorage.getItem('star_ref')){ctx.fillStyle='#f0c040';ctx.fillText(`💝 好友推荐你来看`,W/2,y);y+=22;}
+  // ---- 邀请助力 · 二维码 ----
+  y = Math.max(y + 16, 540);
+  ctx.strokeStyle='rgba(240,192,64,0.25)'; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(W-30,y); ctx.stroke(); y += 30;
+  ctx.textAlign='center'; ctx.font='bold 16px sans-serif'; ctx.fillStyle='#f0c040';
+  ctx.fillText('长按识别二维码，解锁完整天赋报告', W/2, y); y += 24;
+  ctx.font='13px sans-serif'; ctx.fillStyle='#aab0d8';
+  ctx.fillText('邀请好友完成测试，免费解锁全部深度解读', W/2, y); y += 20;
+
+  // 二维码（白底 + 黑色模块）
+  const qrSize = 176;
+  const qrX = (W - qrSize) / 2;
+  const qrY = y + 10;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28);
+  const qr = qrcode(0, 'M');
+  qr.addData(getShareUrl());
+  qr.make();
+  const n = qr.getModuleCount();
+  const cell = qrSize / n;
+  ctx.fillStyle = '#0a0e27';
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (qr.isDark(r, c)) ctx.fillRect(qrX + c * cell, qrY + r * cell, Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+  y = qrY + qrSize + 30;
+
+  // 底部 footer
+  ctx.strokeStyle='rgba(240,192,64,0.25)'; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(W-30,y); ctx.stroke(); y += 18;
+  ctx.textAlign='center'; ctx.font='13px sans-serif'; ctx.fillStyle='#8b8fbd';
+  ctx.fillText(`加微信 ${CONTACT_WECHAT} 获取 1 对 1 深度解读`, W/2, y); y += 20;
+  if(localStorage.getItem('star_ref')){ctx.fillStyle='#f0c040';ctx.font='12px sans-serif';ctx.fillText(`💝 好友推荐你来看`,W/2,y);y+=20;}
   ctx.fillStyle='rgba(139,143,189,0.5)'; ctx.font='12px sans-serif';
-  ctx.fillText('劲脑·天赋探测仪 · 发现孩子的天赋密码', W/2, y);
+  ctx.fillText('天赋探测仪 · 发现孩子的天赋密码', W/2, y);
   return off.toDataURL('image/png');
 }
 
@@ -2736,7 +2998,7 @@ window.shareDistributorLink = () => {
   const el = document.querySelector('.dist-share-link');
   if (!el) return;
   const url = el.textContent;
-  const text = `🌟 来「劲脑·天赋探测仪」给孩子做一份专业的星盘天赋解读！\nAI 全面分析孩子的性格、天赋、学习模式和教育路径。\n\n 点开看看：${url}\n\n（这是我的推广链接，感谢你的支持！）`;
+  const text = `🌟 来「天赋探测仪」给孩子做一份专业的星盘天赋解读！\nAI 全面分析孩子的性格、天赋、学习模式和教育路径。\n\n 点开看看：${url}\n\n（这是我的推广链接，感谢你的支持！）`;
   copyTextToClipboard(text);
   showToast('✅ 推广文案已复制，快去分享吧！');
 };
@@ -2942,7 +3204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   showPage('home');
   track('app_load', { label: 'v2.0' });
 
-  // 检查微信 OAuth 回调（支付 + 登录）
-  handleWeChatOAuth();
+  // 检查微信 OAuth 回调（登录 + 报告）
   handleLoginOAuth();
+  handleReportOAuth();
 });

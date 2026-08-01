@@ -11,6 +11,7 @@
   "dependencies": {
     "astronomia": "^1.0.0",
     "ephemeris": "^2.2.0",
+    "qrcode-generator": "^2.0.4",
     "sweph-wasm": "^2.6.9",
     "swisseph": "^0.5.17",
     "xlsx": "^0.18.5"

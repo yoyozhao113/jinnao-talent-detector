@@ -33,6 +33,7 @@ const getChartFallback = chartModule.getFallbackReport;
 const kbModule = await import('./api/knowledge-base.mjs');
 const { buildSystemPrompt, buildChartPrompt, parseReportResponse } = kbModule;
 const dist = await import('./api/distribution.mjs');
+const assist = await import('./api/assist.mjs');
 const wechatPay = await import('./api/wechat-pay.mjs');
 const userApi = await import('./api/user.mjs');
 
@@ -138,10 +139,18 @@ http.createServer(async (req, res) => {
   // === 留资 API ===
   if (req.url === '/api/lead' && req.method === 'POST') {
     parseJSONBody(req).then(body => {
-      const { wechat, phone, name, type } = body;
-      if (!wechat) { sendJSON(res, 400, { success: false, error: '微信号不能为空' }); return; }
-      saveLeadRecord({ wechat, phone: phone || '', name: name || '', type: type || 'star', createdAt: new Date().toISOString() });
-      console.log('[留资] 新线索 微信号:', wechat, '类型:', type || 'star');
+      const { wechat, phone, name, type, openId } = body;
+      const identifier = wechat || openId;
+      if (!identifier) { sendJSON(res, 400, { success: false, error: '缺少联系方式' }); return; }
+      saveLeadRecord({
+        wechat: wechat || '',
+        openId: openId || '',
+        phone: phone || '',
+        name: name || '',
+        type: type || 'star',
+        createdAt: new Date().toISOString()
+      });
+      console.log('[留资] 新线索', wechat ? '微信号:' + wechat : 'OpenID:' + openId, '类型:', type || 'star');
       sendJSON(res, 200, { success: true });
     }).catch(() => sendJSON(res, 200, { success: false }));
     return;
@@ -371,6 +380,84 @@ http.createServer(async (req, res) => {
     if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
     parseJSONBody(req).then(body => {
       const result = dist.updateConfig(body);
+      sendJSON(res, result.success ? 200 : 400, result);
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // ========== 邀请助力解锁 API ==========
+
+  // 获取助力配置（公开，前端渲染进度用）
+  if (req.url.startsWith('/api/assist/config') && req.method === 'GET') {
+    const config = assist.getConfig();
+    sendJSON(res, 200, { success: true, config });
+    return;
+  }
+
+  // 获取用户助力解锁状态
+  if (req.url.startsWith('/api/assist/status') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (!params.key) { sendJSON(res, 400, { success: false, error: '缺少 key' }); return; }
+    const status = assist.getAssistStatus(params.key);
+    sendJSON(res, 200, { success: true, status });
+    return;
+  }
+
+  // 记录一次助力（好友完成测试后调用）
+  if (req.url === '/api/assist/record' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const result = assist.recordAssist({
+        hostKey: body.hostKey,
+        helperKey: body.helperKey,
+        helperName: body.helperName || '匿名好友',
+      });
+      sendJSON(res, result.success ? 200 : 400, result);
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 显式解锁（填微信解锁 / 管理员手动）
+  if (req.url === '/api/assist/unlock' && req.method === 'POST') {
+    parseJSONBody(req).then(body => {
+      const result = assist.unlockByMethod(body.hostKey, body.method || 'manual');
+      sendJSON(res, result.success ? 200 : 400, result);
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 重置某用户的助力（管理员）
+  if (req.url.startsWith('/api/assist/admin/reset') && req.method === 'POST') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
+    parseJSONBody(req).then(body => {
+      const result = assist.resetAssist(body.hostKey);
+      sendJSON(res, 200, result);
+    }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
+    return;
+  }
+
+  // 助力活动统计（管理员）
+  if (req.url.startsWith('/api/assist/admin/stats') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
+    sendJSON(res, 200, { success: true, stats: assist.getAssistStats() });
+    return;
+  }
+
+  // 获取助力配置（管理员）
+  if (req.url.startsWith('/api/assist/admin/config') && req.method === 'GET') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
+    sendJSON(res, 200, { success: true, config: assist.getConfig() });
+    return;
+  }
+
+  // 更新助力配置（管理员）
+  if (req.url.startsWith('/api/assist/admin/config') && req.method === 'POST') {
+    const params = getURLParams(req.url);
+    if (params.key !== ADMIN_KEY) { sendJSON(res, 403, { success: false, error: '无权限' }); return; }
+    parseJSONBody(req).then(body => {
+      const result = assist.updateConfig(body);
       sendJSON(res, result.success ? 200 : 400, result);
     }).catch(() => sendJSON(res, 400, { success: false, error: 'invalid json' }));
     return;
@@ -758,7 +845,7 @@ async function callDeepSeekChart(chart, name, version, budget, grade) {
   console.log('正在调用 DeepSeek 星盘解读...');
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   let resp;
   try {

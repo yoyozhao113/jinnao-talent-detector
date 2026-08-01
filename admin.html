@@ -318,13 +318,17 @@
       if (!container) return;
 
       if (currentDistTab === 'settings') {
-        // 加载配置
-        api('/api/distributor/admin/config?key=' + ADMIN_KEY).then(data => {
-          if (!data.success || !data.config) {
+        // 加载分销 + 助力解锁配置
+        Promise.all([
+          api('/api/distributor/admin/config?key=' + ADMIN_KEY),
+          api('/api/assist/admin/config?key=' + ADMIN_KEY)
+        ]).then(([distData, assistData]) => {
+          if (!distData.success || !distData.config) {
             container.innerHTML = '<div class="admin-empty">加载失败</div>';
             return;
           }
-          const cfg = data.config;
+          const cfg = distData.config;
+          const acfg = assistData.config || { unlockThreshold: 3 };
           container.innerHTML = `
             <div class="dist-admin-config">
               <h3>⚙ 分销系统配置</h3>
@@ -339,7 +343,17 @@
                 <div class="dist-admin-config-hint">当前：<span class="current">¥${cfg.minWithdrawal}</span>（推广员提现门槛）</div>
               </div>
               <div id="cfg-save-msg" style="color:#66bb6a;font-size:0.8rem;margin-bottom:8px;"></div>
-              <button class="btn-save-config" onclick="saveDistConfig()">保存配置</button>
+              <button class="btn-save-config" onclick="saveDistConfig()">保存分销配置</button>
+            </div>
+            <div class="dist-admin-config" style="margin-top:20px;">
+              <h3>🔓 邀请助力解锁配置</h3>
+              <div class="dist-admin-config-row">
+                <label>解锁助力人数</label>
+                <input type="number" id="cfg-unlock-threshold" value="${acfg.unlockThreshold}" step="1" min="1" max="99" />
+                <div class="dist-admin-config-hint">当前：<span class="current">${acfg.unlockThreshold} 人</span>（用户需邀请多少位好友完成测试才能解锁完整报告）</div>
+              </div>
+              <div id="assist-cfg-save-msg" style="color:#66bb6a;font-size:0.8rem;margin-bottom:8px;"></div>
+              <button class="btn-save-config" onclick="saveAssistConfig()">保存助力配置</button>
             </div>
           `;
         });
@@ -461,6 +475,25 @@
         loadDistributorData();
       } else {
         alert(res.error || '操作失败');
+      }
+    }
+
+    async function saveAssistConfig() {
+      const threshold = parseInt(document.getElementById('cfg-unlock-threshold')?.value, 10);
+      const msgEl = document.getElementById('assist-cfg-save-msg');
+      if (!msgEl) return;
+      if (isNaN(threshold) || threshold < 1 || threshold > 99) {
+        msgEl.textContent = '❌ 解锁人数需在 1~99 之间';
+        return;
+      }
+      const res = await api('/api/assist/admin/config?key=' + ADMIN_KEY, {
+        method: 'POST', body: JSON.stringify({ unlockThreshold: threshold })
+      });
+      if (res.success) {
+        msgEl.textContent = '✅ 助力门槛已保存';
+        setTimeout(() => { msgEl.textContent = ''; }, 3000);
+      } else {
+        msgEl.textContent = '❌ ' + (res.error || '保存失败');
       }
     }
 
