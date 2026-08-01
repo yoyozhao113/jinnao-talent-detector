@@ -19,7 +19,7 @@ const ASSISTS_FILE = join(ROOT, 'data', 'assists.json');
 const UNLOCKS_FILE = join(ROOT, 'data', 'assist_unlocks.json');
 const CONFIG_FILE = join(ROOT, 'assist_config.json');
 
-const DEFAULT_CONFIG = { unlockThreshold: 3 };
+const DEFAULT_CONFIG = { unlockThreshold: 2 };
 
 function ensureDataDir() {
   const d = join(ROOT, 'data');

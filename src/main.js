@@ -2373,21 +2373,22 @@ function getShareUrl() {
 
 // 渲染解锁墙（未解锁时追加在报告底部）
 function renderUnlockWall(status) {
-  const threshold = status.threshold || 3;
+  const threshold = status.threshold || 2;
   const count = status.count || 0;
+  const needed = Math.max(0, status.needed !== undefined ? status.needed : (threshold - count));
   const pct = Math.min(100, Math.round(count / threshold * 100));
   return `
     <div class="unlock-wall" id="unlock-wall">
       <div class="unlock-wall-icon">🔓</div>
       <div class="unlock-wall-body">
         <div class="unlock-wall-title">解锁完整版报告</div>
-        <div class="unlock-wall-desc">邀请 <strong>${threshold}</strong> 位好友完成测试，即可免费解锁全部 ${LOCKED_SECTIONS.length} 个深度解读板块</div>
+        <div class="unlock-wall-desc">还有 <strong>${LOCKED_SECTIONS.length}</strong> 个深度板块被锁住<br>邀请 <strong>${threshold}</strong> 位好友完成测试，全部免费解锁</div>
         <div class="unlock-progress">
           <div class="unlock-progress-bar"><div class="unlock-progress-fill" id="unlock-progress-fill" style="width:${pct}%"></div></div>
-          <div class="unlock-progress-text" id="unlock-progress-text">已邀请 <strong>${count}</strong> / ${threshold} 人</div>
+          <div class="unlock-progress-text">还差 <strong id="unlock-needed-count">${needed}</strong> 人 · 已邀请 <strong>${count}</strong>/${threshold}</div>
         </div>
         <button class="unlock-wall-btn" onclick="unlockInvite()">📤 邀请好友助力</button>
-        <div class="unlock-wall-alt" onclick="unlockByWechat()">或填写微信，顾问直接发放完整版</div>
+        <button class="unlock-wall-wechat" onclick="unlockByWechat()">💬 或填微信，顾问直接发放完整版</button>
       </div>
     </div>`;
 }
@@ -2409,15 +2410,20 @@ function updateUnlockWall(status) {
   const wall = document.getElementById('unlock-wall');
   const fill = document.getElementById('unlock-progress-fill');
   const text = document.getElementById('unlock-progress-text');
+  const neededEl = document.getElementById('unlock-needed-count');
   if (status.unlocked) {
     const anyWall = document.getElementById('unlock-wall');
     if (anyWall) { anyWall.classList.add('unlocked'); anyWall.querySelector('.unlock-wall-btn').textContent = '✅ 已解锁，快去分享吧'; }
     return;
   }
   if (wall && fill && text) {
-    const pct = Math.min(100, Math.round(status.count / status.threshold * 100));
+    const threshold = status.threshold || 2;
+    const count = status.count || 0;
+    const needed = Math.max(0, threshold - count);
+    const pct = Math.min(100, Math.round(count / threshold * 100));
     fill.style.width = pct + '%';
-    text.innerHTML = `已邀请 <strong>${status.count}</strong> / ${status.threshold} 人`;
+    text.innerHTML = `还差 <strong>${needed}</strong> 人 · 已邀请 <strong>${count}</strong>/${threshold}`;
+    if (neededEl) neededEl.textContent = needed;
   }
 }
 
@@ -2473,69 +2479,115 @@ function generateShareImage() {
   if (!r) return null;
   const canvas = document.getElementById('chart-wheel');
   if (!canvas) return null;
-  const W = 600, H = 920;
+  const W = 600, H = 1020;
   const off = document.createElement('canvas');
   off.width = W; off.height = H;
   const ctx = off.getContext('2d');
+  const rr = (x, y, w, h, rad) => {
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  };
   // 背景
   const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#0a0e27'); g.addColorStop(0.5,'#111638'); g.addColorStop(1,'#0a0e27');
+  g.addColorStop(0,'#0a0e27'); g.addColorStop(0.45,'#131a45'); g.addColorStop(1,'#0a0e27');
   ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  // 顶部金色光晕
+  const glow = ctx.createRadialGradient(W/2, -40, 20, W/2, -40, 380);
+  glow.addColorStop(0,'rgba(240,192,64,0.22)'); glow.addColorStop(1,'transparent');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,W,320);
   // 星点
-  ctx.fillStyle='rgba(255,255,255,0.12)';
-  for(let i=0;i<30;i++){ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,Math.random()*2+1,0,Math.PI*2);ctx.fill();}
-  // 品牌
-  ctx.fillStyle='#f0c040'; ctx.font='bold 26px sans-serif'; ctx.textAlign='center';
-  ctx.fillText('⭐ 天赋探测仪', W/2, 45);
-  ctx.fillStyle='#fff'; ctx.font='bold 20px sans-serif';
-  ctx.fillText(`${r.name||'宝贝'} 的星盘天赋解读`, W/2, 80);
-  // 分隔线
-  ctx.strokeStyle='rgba(240,192,64,0.3)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(40,100); ctx.lineTo(W-40,100); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.14)';
+  for(let i=0;i<40;i++){ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,Math.random()*1.8+0.6,0,Math.PI*2);ctx.fill();}
+  // 头部
+  ctx.textAlign='center';
+  ctx.fillStyle='#f0c040'; ctx.font='bold 27px sans-serif';
+  ctx.fillText('⭐ 天赋探测仪', W/2, 46);
+  ctx.fillStyle='#fff'; ctx.font='bold 21px sans-serif';
+  ctx.fillText(`${r.name||'宝贝'} 的星盘天赋解读`, W/2, 82);
+  ctx.fillStyle='#8b8fbd'; ctx.font='14px sans-serif';
+  ctx.fillText('发现天生优势 · 解锁星辰密码', W/2, 106);
+  ctx.strokeStyle='rgba(240,192,64,0.3)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(40,122); ctx.lineTo(W-40,122); ctx.stroke();
   // 星盘图
   try {
-    const sz = 220; const cx = (W-sz)/2, cy = 115;
+    const sz = 232; const cx = (W-sz)/2, cy = 142;
     ctx.save();
-    ctx.beginPath(); ctx.arc(cx+sz/2, cy+sz/2, sz/2+6, 0, Math.PI*2);
+    rr(cx, cy, sz, sz, sz/2 + 6);
     ctx.fillStyle='rgba(17,22,56,0.95)'; ctx.fill();
-    ctx.strokeStyle='rgba(240,192,64,0.15)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.strokeStyle='rgba(240,192,64,0.18)'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx+sz/2, cy+sz/2, sz/2, 0, Math.PI*2); ctx.clip();
     ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, cx, cy, sz, sz);
     ctx.restore();
   } catch(e) {}
-  // 日月升
-  let y = 360;
-  ctx.textAlign='left'; ctx.font='15px sans-serif'; ctx.fillStyle='#8b8fbd';
-  if(r.chartSummary){
-    ctx.fillText(`太阳：${r.chartSummary.sun||''}`, 30, y); y+=26;
-    ctx.fillText(`月亮：${r.chartSummary.moon||''}`, 30, y); y+=26;
-    ctx.fillText(`上升：${r.chartSummary.rising||''}`, 30, y); y+=26;
+  // 日月升 chips
+  const sum = r.chartSummary || {};
+  const chips = [['☀️', sum.sun], ['🌙', sum.moon], ['✨', sum.rising]].filter(c => c[1]);
+  if (chips.length) {
+    ctx.font='13px sans-serif'; ctx.textAlign='center';
+    const gap = 14;
+    const total = chips.reduce((s, c) => s + ctx.measureText(`${c[0]} ${c[1]}`).width, 0) + gap * (chips.length - 1);
+    let x = (W - total) / 2;
+    chips.forEach(([icon, txt]) => {
+      const tw = ctx.measureText(`${icon} ${txt}`).width;
+      rr(x, 392, tw + 20, 28, 14);
+      ctx.fillStyle='rgba(240,192,64,0.12)'; ctx.fill();
+      ctx.strokeStyle='rgba(240,192,64,0.35)'; ctx.lineWidth=1; ctx.stroke();
+      ctx.fillStyle='#f0c040'; ctx.textBaseline='middle';
+      ctx.fillText(`${icon} ${txt}`, x + (tw+20)/2, 406);
+      x += tw + 20 + gap;
+    });
+    ctx.textBaseline='alphabetic';
   }
-  // 分隔
-  y+=8; ctx.strokeStyle='rgba(240,192,64,0.2)'; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(W-30,y); ctx.stroke(); y+=16;
-  // 关键发现
+  // 天赋亮点
+  let y = 470;
+  ctx.textAlign='left'; ctx.font='bold 15px sans-serif'; ctx.fillStyle='#f0c040';
+  ctx.fillText('✦ 天赋亮点', 30, y); y += 24;
   const f = (id) => r.sections?.find(s => s.id === id);
-  ctx.font='bold 15px sans-serif'; ctx.fillStyle='#f0c040';
-  ctx.fillText(' 关键发现', 30, y); y+=24;
-  ctx.font='13px sans-serif'; ctx.fillStyle='#e8eaff';
-  const sc = f('summary')?.content;
-  if(sc?.devDirection){const t=sc.devDirection;ctx.fillText(`🎯 ${t.length>84?t.substring(0,84)+'…':t}`,30,y);y+=20;}
+  const items = [];
   const tc = f('talent')?.content?.description?.replace(/<[^>]*>/g,'');
-  if(tc){ctx.fillText(`🧠 ${tc.substring(0,84)}`,30,y);y+=20;}
+  if (tc) items.push(['🧠', '天赋画像', tc]);
+  const mc = f('mercury')?.content?.style;
+  if (mc) items.push(['📚', '学习模式', mc]);
   const ec = f('edu_path')?.content?.pathType;
-  if(ec) ctx.fillText(`🎓 ${ec}`,30,y);
-  // ---- 邀请助力 · 二维码 ----
-  y = Math.max(y + 16, 540);
-  ctx.strokeStyle='rgba(240,192,64,0.25)'; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(W-30,y); ctx.stroke(); y += 30;
-  ctx.textAlign='center'; ctx.font='bold 16px sans-serif'; ctx.fillStyle='#f0c040';
-  ctx.fillText('长按识别二维码，解锁完整天赋报告', W/2, y); y += 24;
-  ctx.font='13px sans-serif'; ctx.fillStyle='#aab0d8';
-  ctx.fillText('邀请好友完成测试，免费解锁全部深度解读', W/2, y); y += 20;
-
+  if (ec) items.push(['🎓', '教育路径', ec]);
+  const sc = f('summary')?.content?.devDirection;
+  if (sc) items.push(['🎯', '发展方向', sc]);
+  ctx.font='13px sans-serif';
+  items.slice(0, 4).forEach(([icon, label, txt]) => {
+    const t = String(txt || '').replace(/<[^>]*>/g,'');
+    const clipped = t.length > 30 ? t.substring(0, 30) + '…' : t;
+    const lw = ctx.measureText(label).width;
+    rr(30, y - 14, lw + 16, 20, 10);
+    ctx.fillStyle='rgba(240,192,64,0.14)'; ctx.fill();
+    ctx.font='bold 11px sans-serif'; ctx.fillStyle='#f0c040';
+    ctx.fillText(label, 38, y);
+    ctx.font='13px sans-serif'; ctx.fillStyle='#e8eaff';
+    ctx.fillText(`${icon} ${clipped}`, 30 + lw + 22, y);
+    y += 26;
+  });
+  // CTA 区块（二维码 + 还差几人）
+  const ctaTop = y + 14;
+  rr(24, ctaTop, W - 48, 320, 18);
+  ctx.fillStyle='rgba(240,192,64,0.06)'; ctx.fill();
+  ctx.strokeStyle='rgba(240,192,64,0.4)'; ctx.lineWidth=1.5; ctx.stroke();
+  const cx2 = W/2;
+  ctx.textAlign='center';
+  ctx.fillStyle='#f0c040'; ctx.font='bold 18px sans-serif';
+  ctx.fillText('长按识别二维码', cx2, ctaTop + 36);
+  ctx.fillStyle='#aab0d8'; ctx.font='13px sans-serif';
+  ctx.fillText('邀请好友完成测试，免费解锁全部深度解读', cx2, ctaTop + 58);
   // 二维码（白底 + 黑色模块）
-  const qrSize = 176;
+  const qrSize = 190;
   const qrX = (W - qrSize) / 2;
-  const qrY = y + 10;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28);
+  const qrY = ctaTop + 74;
+  ctx.fillStyle='#ffffff';
+  rr(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 10); ctx.fill();
+  ctx.strokeStyle='rgba(240,192,64,0.35)'; ctx.lineWidth=1.5;
+  rr(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28, 10); ctx.stroke();
   const qr = qrcode(0, 'M');
   qr.addData(getShareUrl());
   qr.make();
@@ -2547,15 +2599,28 @@ function generateShareImage() {
       if (qr.isDark(r, c)) ctx.fillRect(qrX + c * cell, qrY + r * cell, Math.ceil(cell), Math.ceil(cell));
     }
   }
-  y = qrY + qrSize + 30;
-
+  // 还差 X 人（未解锁时显示，制造紧迫感）
+  const assist = _assistAccess || {};
+  const threshold = assist.threshold || 2;
+  const count = assist.count || 0;
+  let urText = '';
+  if (assist.unlocked === true) urText = '✅ 已解锁完整报告';
+  else if (threshold > 1) {
+    const need = Math.max(0, threshold - count);
+    urText = need > 0 ? `🔥 还差 ${need} 位好友，就能解锁完整报告` : '🎉 就差最后一位好友！';
+  }
+  if (urText) {
+    ctx.fillStyle='#fbbf24'; ctx.font='bold 15px sans-serif';
+    ctx.fillText(urText, cx2, qrY + qrSize + 36);
+  }
   // 底部 footer
-  ctx.strokeStyle='rgba(240,192,64,0.25)'; ctx.beginPath(); ctx.moveTo(30,y); ctx.lineTo(W-30,y); ctx.stroke(); y += 18;
+  const fy = ctaTop + 336;
+  ctx.strokeStyle='rgba(240,192,64,0.25)'; ctx.beginPath(); ctx.moveTo(30,fy); ctx.lineTo(W-30,fy); ctx.stroke();
   ctx.textAlign='center'; ctx.font='13px sans-serif'; ctx.fillStyle='#8b8fbd';
-  ctx.fillText(`加微信 ${CONTACT_WECHAT} 获取 1 对 1 深度解读`, W/2, y); y += 20;
-  if(localStorage.getItem('star_ref')){ctx.fillStyle='#f0c040';ctx.font='12px sans-serif';ctx.fillText(`💝 好友推荐你来看`,W/2,y);y+=20;}
+  ctx.fillText(`加微信 ${CONTACT_WECHAT} 获取 1 对 1 深度解读`, cx2, fy + 24);
+  if(localStorage.getItem('star_ref')){ctx.fillStyle='#f0c040';ctx.font='12px sans-serif';ctx.fillText('💝 好友推荐你来看', cx2, fy + 46);}
   ctx.fillStyle='rgba(139,143,189,0.5)'; ctx.font='12px sans-serif';
-  ctx.fillText('天赋探测仪 · 发现孩子的天赋密码', W/2, y);
+  ctx.fillText('天赋探测仪 · 发现孩子的天赋密码', cx2, fy + (localStorage.getItem('star_ref') ? 68 : 46));
   return off.toDataURL('image/png');
 }
 
