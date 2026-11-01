@@ -1,5 +1,5 @@
 /**
- * 劲脑·天赋探测仪 API 服务（端口 3001）
+ * 学习力卡点测评 API 服务（端口 3001）
  */
 import { createRequire } from 'module';
 import fs from 'fs';
@@ -555,13 +555,13 @@ http.createServer(async (req, res) => {
         const result = await wechatPay.createUnifiedOrder({
           openId,
           amount,
-          description: '劲脑·天赋探测仪 - 深度版报告',
+          description: '学习力卡点测评 - 深度版报告',
         });
         wechatPay.savePaymentOrder({
           outTradeNo: result.outTradeNo,
           openId,
           amount,
-          description: '劲脑·天赋探测仪 - 深度版报告',
+          description: '学习力卡点测评 - 深度版报告',
         });
         sendJSON(res, 200, { success: true, ...result });
       } catch (err) {

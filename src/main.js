@@ -1,5 +1,5 @@
 /**
- * 天赋探测仪 - 主入口
+ * 学习力卡点测评 - 主入口
  * Step 1: 首页 → Step 2: 填信息/答题 → Step 3: 报告
  */
 import { CITIES } from './data/cities.js';
@@ -1235,7 +1235,7 @@ function showLoading(text, hint) {
 
 function renderReport(report, version) {
   const badge = $('report-badge');
-  badge.textContent = '天赋探测仪';
+  badge.textContent = '学习力卡点测评';
   badge.className = `report-badge ${version}`;
   $('report-title').textContent = `${report.name || '宝贝'}的专属星盘解读`;
   const summary = report.chartSummary || {};
@@ -1998,11 +1998,11 @@ function showAboutModal() {
       </div>
       <div class="modal-body" style="text-align:center;">
         <div style="font-size:3rem;margin-bottom:10px;">✦</div>
-        <h3 style="color:#E2E8F0;font-size:1.1rem;margin-bottom:4px;">天赋探测仪</h3>
+        <h3 style="color:#E2E8F0;font-size:1.1rem;margin-bottom:4px;">学习力卡点测评</h3>
         <p style="color:#64748B;font-size:0.8rem;margin-bottom:16px;">v2.0.0</p>
         <div style="background:#060A1A;border-radius:10px;padding:14px;text-align:left;line-height:1.8;">
           <p style="color:#94A3B8;font-size:0.85rem;">
-            天赋探测仪是一款基于AI的亲子天赋解读工具，融合星盘学、MBTI人格理论与五者天赋体系，帮助家长发现孩子的天生优势与教育方向。
+            学习力卡点测评是一款基于AI的亲子学习力分析工具，融合星盘学、MBTI人格理论与五者天赋体系，帮助家长发现孩子的学习卡点与提升方向。
           </p>
         </div>
         <p style="color:#475569;font-size:0.75rem;margin-top:16px;">
@@ -2469,7 +2469,7 @@ function getShareText() {
   if (t?.content?.description) lines.push(`🧠 天赋亮点：${t.content.description.replace(/<[^>]*>/g,'').substring(0, 80)}`);
   if (e?.content?.pathType) lines.push(`🎓 教育路径：${e.content.pathType}`);
   if (sk?.content?.level) lines.push(`⚠ 风险等级：${sk.content.level}`);
-  lines.push('', ` 复制链接查看完整报告：${getShareUrl()}`, `💬 加微信 ${CONTACT_WECHAT} 获取深度解读`, '━━━━━━━━━━━━━━━', '来「天赋探测仪」，发现孩子的天赋密码！');
+  lines.push('', ` 复制链接查看完整报告：${getShareUrl()}`, `💬 加微信 ${CONTACT_WECHAT} 获取深度解读`, '━━━━━━━━━━━━━━━', '来「学习力卡点测评」，发现孩子的天赋密码！');
   return lines.join('\n');
 }
 
@@ -2506,7 +2506,7 @@ function generateShareImage() {
   // 头部
   ctx.textAlign='center';
   ctx.fillStyle='#f0c040'; ctx.font='bold 27px sans-serif';
-  ctx.fillText('⭐ 天赋探测仪', W/2, 46);
+  ctx.fillText('⭐ 学习力卡点测评', W/2, 46);
   ctx.fillStyle='#fff'; ctx.font='bold 21px sans-serif';
   ctx.fillText(`${r.name||'宝贝'} 的星盘天赋解读`, W/2, 82);
   ctx.fillStyle='#8b8fbd'; ctx.font='14px sans-serif';
@@ -2620,7 +2620,7 @@ function generateShareImage() {
   ctx.fillText(`加微信 ${CONTACT_WECHAT} 获取 1 对 1 深度解读`, cx2, fy + 24);
   if(localStorage.getItem('star_ref')){ctx.fillStyle='#f0c040';ctx.font='12px sans-serif';ctx.fillText('💝 好友推荐你来看', cx2, fy + 46);}
   ctx.fillStyle='rgba(139,143,189,0.5)'; ctx.font='12px sans-serif';
-  ctx.fillText('天赋探测仪 · 发现孩子的天赋密码', cx2, fy + (localStorage.getItem('star_ref') ? 68 : 46));
+  ctx.fillText('学习力卡点测评 · 发现孩子的天赋密码', cx2, fy + (localStorage.getItem('star_ref') ? 68 : 46));
   return off.toDataURL('image/png');
 }
 
@@ -3063,7 +3063,7 @@ window.shareDistributorLink = () => {
   const el = document.querySelector('.dist-share-link');
   if (!el) return;
   const url = el.textContent;
-  const text = `🌟 来「天赋探测仪」给孩子做一份专业的星盘天赋解读！\nAI 全面分析孩子的性格、天赋、学习模式和教育路径。\n\n 点开看看：${url}\n\n（这是我的推广链接，感谢你的支持！）`;
+  const text = `🌟 来「学习力卡点测评」给孩子做一份专业的星盘天赋解读！\nAI 全面分析孩子的性格、天赋、学习模式和教育路径。\n\n 点开看看：${url}\n\n（这是我的推广链接，感谢你的支持！）`;
   copyTextToClipboard(text);
   showToast('✅ 推广文案已复制，快去分享吧！');
 };
